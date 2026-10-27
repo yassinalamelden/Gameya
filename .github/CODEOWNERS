@@ -1,0 +1,43 @@
+# CODEOWNERS — Gam'eya
+# Last match wins: broad directories first, Person 5's canonical overrides last.
+# Replace @p1 … @p5 with the teammates' GitHub handles.
+
+# Person 1 — Backend server & PayPal payments
+backend/requirements.txt        @p1
+backend/Dockerfile              @p1
+backend/app/main.py             @p1
+backend/app/config.py           @p1
+backend/app/db/                 @p1
+backend/app/api/                @p1
+backend/app/domain/             @p1
+backend/app/services/           @p1
+backend/tests/unit_paypal/      @p1
+
+# Person 2 — AI agents & guardrails
+backend/app/ai/                 @p2
+backend/tests/unit_ai/          @p2
+
+# Person 3 — Fair-order AI & ML
+backend/app/ai/needs_extractor.py  @p3
+backend/app/ai/fair_order.py       @p3
+backend/app/ml/                    @p3
+backend/tests/unit_ml/             @p3
+
+# Person 4 — Frontend & AG Grid
+frontend/                       @p4
+
+# Person 5 — Integration, QA, security & submission (canonical contracts + infra)
+LICENSE                         @p5
+README.md                       @p5
+AGENTS.md                       @p5
+.env.example                    @p5
+.gitignore                      @p5
+docker-compose.yml              @p5
+render.yaml                     @p5
+.github/                        @p5
+docs/                           @p5
+scripts/                        @p5
+shared/                         @p5
+backend/app/schemas/            @p5
+backend/tests/integration/      @p5
+frontend/src/types/             @p5
