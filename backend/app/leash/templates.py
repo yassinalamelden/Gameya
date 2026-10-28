@@ -10,7 +10,7 @@ from collections.abc import Callable
 from datetime import datetime
 from decimal import Decimal
 
-from ..schemas.contracts import LeashDecision
+from ..schemas.contracts import GuardAction, LeashDecision
 from .facts import (
     BaseFacts,
     ChaseInvoiceFacts,
@@ -18,6 +18,11 @@ from .facts import (
     ReminderFacts,
     SwapFacts,
 )
+
+MAX_REASON_LEN = 200
+_STRICT = "STRICT"
+_ALLOWED = "Allowed:"
+_STRICT_PREFIX = "Waiting (Strict preset):"
 
 
 def _money(value: Decimal) -> str:
@@ -190,6 +195,8 @@ _TEMPLATES: dict[str, Callable[[BaseFacts], str]] = {
 
 
 def _render_one(rule_id: str, decision: LeashDecision, facts: BaseFacts) -> str:
+    if rule_id == "LEASH_DISABLED":
+        return "Allowed: Leash is off."
     if rule_id == "G-05":
         r = _reminder(facts)
         if decision is LeashDecision.ALLOW:
@@ -199,3 +206,26 @@ def _render_one(rule_id: str, decision: LeashDecision, facts: BaseFacts) -> str:
     if template is None:
         raise ValueError(f"no reason template for rule id {rule_id!r}")
     return template(facts)
+
+
+def render_reason(
+    action: GuardAction,
+    decision: LeashDecision,
+    rule_ids: list[str],
+    facts: BaseFacts,
+) -> str:
+    """Render a human reason (at most 200 chars) for a decision and its rule ids."""
+    strict = bool(rule_ids) and rule_ids[-1] == _STRICT
+    ids = rule_ids[:-1] if strict else list(rule_ids)
+    if not ids:
+        raise ValueError("render_reason needs at least one rule id")
+    text = _render_one(ids[0], decision, facts)
+    if strict and text.startswith(_ALLOWED):
+        text = _STRICT_PREFIX + text[len(_ALLOWED) :]
+    elif strict:
+        text = f"{_STRICT_PREFIX} {text}"
+    if not strict and len(ids) > 1:
+        text += f" (+{len(ids) - 1} more: {', '.join(ids[1:])})"
+    if len(text) > MAX_REASON_LEN:
+        text = text[: MAX_REASON_LEN - 1] + "…"
+    return text
