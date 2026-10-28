@@ -38,7 +38,9 @@ def test_threshold_out_of_range_rejected(field, value):
 
 def test_reason_max_200():
     with pytest.raises(ValidationError):
-        GuardResult(decision=LeashDecision.ALLOW, rule_ids=[], reason="x" * 201, decision_id="lsd_1")
+        GuardResult(
+            decision=LeashDecision.ALLOW, rule_ids=[], reason="x" * 201, decision_id="lsd_1"
+        )
 
 
 def test_stub_decide_allows():
