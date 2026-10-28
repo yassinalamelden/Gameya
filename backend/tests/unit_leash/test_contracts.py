@@ -1,9 +1,7 @@
 from decimal import Decimal
 
 import pytest
-from backend.app.leash import decide
 from backend.app.schemas.contracts import (
-    GuardAction,
     GuardResult,
     LeashDecision,
     LeashThresholds,
@@ -41,8 +39,3 @@ def test_reason_max_200():
         GuardResult(
             decision=LeashDecision.ALLOW, rule_ids=[], reason="x" * 201, decision_id="lsd_1"
         )
-
-
-def test_stub_decide_allows():
-    r = decide(None, GuardAction.RELEASE_POT_PAYOUT, "pay_1")
-    assert r.decision is LeashDecision.ALLOW and r.decision_id == "lsd_stub"
