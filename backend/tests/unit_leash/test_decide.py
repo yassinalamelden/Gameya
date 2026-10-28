@@ -191,7 +191,7 @@ def test_approval_is_single_use(db: Session) -> None:
     db.flush()
     first = decide(db, PO, "pay_amina", approved_decision_id=ask.decision_id)
     assert first.decision is LeashDecision.ALLOW
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="already been used"):
         decide(db, PO, "pay_amina", approved_decision_id=ask.decision_id)
     assert len(rows(db)) == 2
 
@@ -226,7 +226,7 @@ def test_approval_must_match_action(db: Session) -> None:
     ask = decide(db, PO, "pay_amina")
     rows(db)[0].status = "APPROVED"
     db.flush()
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="not an approved decision"):
         decide(db, CH, "pay_amina", approved_decision_id=ask.decision_id)
 
 
@@ -238,7 +238,26 @@ def test_open_row_for_other_subject_does_not_dedupe(db: Session) -> None:
 
 
 def test_open_row_for_other_action_does_not_dedupe(db: Session) -> None:
-    ask = decide(db, PO, "pay_amina")
-    other = decide(db, CH, "inv_dup")
+    # Same subject_id, different action: only the action filter can tell them apart.
+    configure(
+        FakeFactsProvider(
+            {
+                "shared": (
+                    "payout",
+                    payout(
+                        "Amina",
+                        "amina@x.com",
+                        payout_email_changed_at=datetime(2026, 10, 27, 12, tzinfo=UTC),
+                    ),
+                ),
+                (CH, "shared"): ("invoice", chase()),
+            }
+        ),
+        FakeEngine(),
+    )
+    ask = decide(db, PO, "shared")
+    assert ask.decision is LeashDecision.ASK
+    other = decide(db, CH, "shared")
     assert other.decision_id != ask.decision_id
     assert {r.action for r in rows(db)} == {PO.value, CH.value}
+    assert len(rows(db)) == 2

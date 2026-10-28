@@ -141,7 +141,7 @@ def test_reject_cancels_and_blocks(db: Session, engine: FakeEngine) -> None:
     org = db.get(LeashDecisionRecord, resp.decision_id)
     assert org is not None and org.decision == "DENY" and org.approves_id == ask
     assert org.reason == "Rejected by organiser: PO-01."
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="already been used|not an approved decision"):
         decide(db, PO, "pay_amina", approved_decision_id=ask)
 
 
@@ -205,7 +205,7 @@ def test_approve_resume_decide_end_to_end(db: Session) -> None:
     assert final.status == "FINAL" and final.facts_json["approved_rule_ids"] == ["PO-01"]
     assert len(rows(db)) == 3
     # The approval is single-use: a second resume-path decide must fail.
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="already been used|not an approved decision"):
         decide(db, PO, "pay_amina", approved_decision_id=ask)
 
 

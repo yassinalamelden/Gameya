@@ -8,11 +8,12 @@ from sqlalchemy.orm import Session
 
 
 class FakeFactsProvider:
-    def __init__(self, facts: dict[str, tuple[str, BaseFacts]]) -> None:
+    def __init__(self, facts: dict[Any, tuple[str, BaseFacts]]) -> None:
+        # Keys are subject ids; an (action, subject_id) key takes precedence over a bare one.
         self.facts = facts
 
     def build(self, db: Session, action: GuardAction, subject_id: str) -> tuple[str, BaseFacts]:
-        subject_type, base = self.facts[subject_id]
+        subject_type, base = self.facts.get((action, subject_id)) or self.facts[subject_id]
         # Hand out a copy so the service mutating approved_rule_ids never leaks into the fixture.
         return subject_type, base.model_copy(deep=True)
 
