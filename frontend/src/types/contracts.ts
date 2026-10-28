@@ -98,3 +98,12 @@ export type LeashErrorCode =
   | "LEASH_STALE_DECISION"
   | "LEASH_POLICY_INVALID"
   | "LEASH_DISABLED";
+
+export interface LeashApiError {
+  error: {
+    code: LeashErrorCode;
+    message: string;
+    details: Record<string, unknown>;
+    request_id: string;
+  };
+}
