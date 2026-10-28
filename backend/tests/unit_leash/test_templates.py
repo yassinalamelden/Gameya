@@ -4,7 +4,12 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import pytest
-from backend.app.leash.facts import PayoutFacts
+from backend.app.leash.facts import (
+    ChaseInvoiceFacts,
+    PayoutFacts,
+    ReminderFacts,
+    SwapFacts,
+)
 from backend.app.leash.templates import _render_one
 from backend.app.schemas.contracts import LeashDecision
 
@@ -62,3 +67,72 @@ def test_missing_timestamp_raises() -> None:
 def test_unknown_rule_id_raises() -> None:
     with pytest.raises(ValueError, match="PO-99"):
         _render_one("PO-99", ASK, payout())
+
+
+def chase(name: str = "Omar") -> ChaseInvoiceFacts:
+    return ChaseInvoiceFacts(
+        now=NOW,
+        circle_id="c1",
+        member_id="m2",
+        member_name=name,
+        invoice_amount="100.00",
+        unpaid_amount="90.00",
+        due_at=NOW - timedelta(days=8),
+        open_invoice_count=0,
+        no_auto_chase=False,
+    )
+
+
+def reminder(name: str = "Omar") -> ReminderFacts:
+    return ReminderFacts(
+        now=NOW, circle_id="c1", member_id="m2", member_name=name, reminders_sent_this_cycle=1
+    )
+
+
+def swap(name: str = "Omar") -> SwapFacts:
+    return SwapFacts(
+        now=NOW,
+        circle_id="c1",
+        member_a_name=name,
+        member_b_name=name + "b",
+        slot_a_payout_at=NOW + timedelta(days=9),
+        slot_b_payout_at=NOW + timedelta(hours=30, minutes=40),
+        moved_earlier_member_name=name,
+        moved_earlier_p_late="0.60",
+    )
+
+
+def test_chase_reminder_swap_copy() -> None:
+    assert _render_one("G-01", ALLOW, chase()) == (
+        "Allowed: invoice for Omar's unpaid $100.00 (rule G-01)."
+    )
+    assert _render_one("G-04", DENY, chase()) == (
+        "Denied: invoice $100.00 does not match unpaid $90.00 (rule G-04)."
+    )
+    assert _render_one("DEFAULT-ASK", ASK, chase()) == (
+        "Waiting: no rule allows this invoice to Omar yet. Approve to send."
+    )
+    assert _render_one("G-05", ALLOW, reminder()) == "Allowed: reminder to Omar (rule G-05)."
+    assert _render_one("G-05", DENY, reminder()) == (
+        "Denied: reminder to Omar too soon or limit reached (rule G-05)."
+    )
+    assert _render_one("S-00", ALLOW, swap()) == (
+        "Allowed: swap between Omar and Omarb (rule S-00)."
+    )
+    assert _render_one("S-01", ASK, swap()) == (
+        "Waiting: a swapped slot pays out within 31 h (rule S-01)."
+    )
+    assert _render_one("S-02", ASK, swap()) == (
+        "Waiting: swap moves high-risk Omar earlier (rule S-02)."
+    )
+
+
+def test_no_upcoming_payout_raises() -> None:
+    past = swap().model_copy(
+        update={
+            "slot_a_payout_at": NOW - timedelta(hours=1),
+            "slot_b_payout_at": NOW - timedelta(hours=2),
+        }
+    )
+    with pytest.raises(ValueError, match="upcoming"):
+        _render_one("S-01", ASK, past)
