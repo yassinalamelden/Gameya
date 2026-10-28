@@ -4,17 +4,31 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from typing import Annotated, Any, cast
 
 from fastapi import APIRouter, Depends, FastAPI, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, ValidationError
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 from ulid import ULID
 
-from ..leash import LeashError
+from ..leash import LeashError, leash_enabled
+from ..leash.models import LeashDecisionRecord
 from ..leash.policy import get_active_policy, save_policy
-from ..schemas.contracts import LeashErrorCode, LeashPolicy, LeashPreset, LeashThresholds
+from ..schemas.contracts import (
+    GuardAction,
+    LeashDecision,
+    LeashDecisionRow,
+    LeashErrorCode,
+    LeashInbox,
+    LeashInboxItem,
+    LeashInboxRecipient,
+    LeashPolicy,
+    LeashPreset,
+    LeashThresholds,
+)
 
 router = APIRouter(prefix="/api/v1", tags=["leash"])
 
@@ -121,3 +135,83 @@ async def put_policy(
     )
     db.commit()
     return policy
+
+
+def _utc(value: datetime) -> datetime:
+    # SQLite hands datetimes back naive; they were stored as UTC.
+    return value.replace(tzinfo=UTC) if value.tzinfo is None else value
+
+
+def _recipient(row: LeashDecisionRecord) -> LeashInboxRecipient | None:
+    facts = row.facts_json
+    if row.subject_type == "payout" and "recipient_member_id" in facts:
+        return LeashInboxRecipient(
+            member_id=facts["recipient_member_id"],
+            name=facts["recipient_name"],
+            payout_email=facts.get("recipient_payout_email"),
+        )
+    if row.subject_type != "swap" and "member_id" in facts:
+        return LeashInboxRecipient(
+            member_id=facts["member_id"], name=facts["member_name"], payout_email=None
+        )
+    return None
+
+
+def _inbox_item(row: LeashDecisionRecord) -> LeashInboxItem:
+    return LeashInboxItem(
+        decision_id=row.id,
+        action=GuardAction(row.action),
+        subject_type=row.subject_type,  # type: ignore[arg-type]
+        subject_id=row.subject_id,
+        cycle_index=row.facts_json.get("cycle_index"),
+        recipient=_recipient(row),
+        amount=row.amount,
+        rule_ids=list(row.rule_ids_json),
+        reason=row.reason,
+        created_at=_utc(row.created_at),
+    )
+
+
+def _decision_row(row: LeashDecisionRecord) -> LeashDecisionRow:
+    return LeashDecisionRow(
+        decision_id=row.id,
+        circle_id=row.circle_id,
+        policy_version=row.policy_version,
+        action=GuardAction(row.action),
+        subject_type=row.subject_type,  # type: ignore[arg-type]
+        subject_id=row.subject_id,
+        decision=LeashDecision(row.decision),
+        rule_ids=list(row.rule_ids_json),
+        amount=row.amount,
+        reason=row.reason,
+        actor=row.actor,  # type: ignore[arg-type]
+        status=row.status,  # type: ignore[arg-type]
+        created_at=_utc(row.created_at),
+        resolved_at=_utc(row.resolved_at) if row.resolved_at else None,
+    )
+
+
+@router.get("/circles/{cid}/leash/inbox", response_model=LeashInbox)
+def get_inbox(cid: str, db: DbDep, actor: ActorDep) -> LeashInbox:
+    _require_organiser(actor, cid)
+    if not leash_enabled():
+        raise LeashError(LeashErrorCode.LEASH_DISABLED, "Leash is switched off.")
+    rows = db.scalars(
+        select(LeashDecisionRecord)
+        .where(LeashDecisionRecord.circle_id == cid, LeashDecisionRecord.status == "OPEN")
+        .order_by(LeashDecisionRecord.created_at.asc(), LeashDecisionRecord.id.asc())
+    )
+    return LeashInbox(items=[_inbox_item(r) for r in rows])
+
+
+@router.get("/circles/{cid}/leash/decisions", response_model=list[LeashDecisionRow])
+def get_decisions(cid: str, db: DbDep, actor: ActorDep, limit: int = 100) -> list[LeashDecisionRow]:
+    _require_organiser(actor, cid)
+    capped = max(1, min(limit, 500))
+    rows = db.scalars(
+        select(LeashDecisionRecord)
+        .where(LeashDecisionRecord.circle_id == cid)
+        .order_by(LeashDecisionRecord.created_at.desc(), LeashDecisionRecord.id.desc())
+        .limit(capped)
+    )
+    return [_decision_row(r) for r in rows]
