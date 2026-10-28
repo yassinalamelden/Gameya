@@ -3,19 +3,27 @@
 from __future__ import annotations
 
 import os
+from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Any, Protocol
+from typing import Any, Protocol, cast
 
-from sqlalchemy import select
+from sqlalchemy import CursorResult, select, update
 from sqlalchemy.orm import Session
+from sqlalchemy.orm.util import identity_key
 
-from ..schemas.contracts import GuardAction, GuardResult, LeashDecision, LeashErrorCode
+from ..schemas.contracts import (
+    GuardAction,
+    GuardResult,
+    LeashDecision,
+    LeashErrorCode,
+    LeashResolveResponse,
+)
 from .facts import BaseFacts, ChaseInvoiceFacts, FactsProvider, PayoutFacts
 from .guard import evaluate_rules
 from .ids import new_id
 from .models import LeashDecisionRecord
 from .policy import get_active_policy
-from .templates import render_reason
+from .templates import MAX_REASON_LEN, render_reason
 
 _DISABLED_VALUES = {"false", "0", "no"}
 DISABLED_RULE = "LEASH_DISABLED"
@@ -179,3 +187,90 @@ def decide(
     db.add(row)
     db.flush()
     return _result(row)
+
+
+def _organiser_reason(approve: bool, rule_ids: list[str], note: str | None) -> str:
+    verb = "Approved" if approve else "Rejected"
+    reason = f"{verb} by organiser: {rule_ids[0] if rule_ids else 'none'}."
+    if note and note.strip():
+        with_note = f"{reason} Note: {note.strip()}"
+        if len(with_note) <= MAX_REASON_LEN:
+            return with_note
+    return reason
+
+
+def resolve(
+    db: Session,
+    decision_id: str,
+    approve: bool,
+    actor_id: str,
+    note: str | None = None,
+) -> LeashResolveResponse:
+    """Approve or reject one OPEN ASK decision exactly once. Flushes only; the caller commits.
+
+    ``actor_id`` is accepted for the API layer's audit trail; the append-only schema has no
+    column for it, so it is not stored. Everything runs in a SAVEPOINT, so an engine failure
+    rolls back the claim and the organiser row and the exception propagates.
+    """
+    try:
+        with db.begin_nested():
+            ask = db.get(LeashDecisionRecord, decision_id)
+            if ask is None:
+                raise LeashError(
+                    LeashErrorCode.LEASH_DECISION_NOT_FOUND,
+                    "Leash decision not found.",
+                    {"decision_id": decision_id},
+                )
+            action = GuardAction(ask.action)
+            subject_id = ask.subject_id
+            claim = db.execute(
+                update(LeashDecisionRecord)
+                .where(LeashDecisionRecord.id == decision_id, LeashDecisionRecord.status == "OPEN")
+                .values(status="APPROVED" if approve else "REJECTED", resolved_at=datetime.now(UTC))
+                .execution_options(synchronize_session=False)
+            )
+            db.expire(ask)
+            if cast("CursorResult[Any]", claim).rowcount == 0:
+                raise LeashError(
+                    LeashErrorCode.LEASH_ALREADY_RESOLVED,
+                    "This Leash decision was already resolved.",
+                    {"decision_id": decision_id, "status": ask.status},
+                )
+            rule_ids = list(ask.rule_ids_json)
+            organiser_row = LeashDecisionRecord(
+                id=new_id("lsd"),
+                circle_id=ask.circle_id,
+                policy_version=ask.policy_version,
+                action=ask.action,
+                subject_type=ask.subject_type,
+                subject_id=subject_id,
+                decision=(LeashDecision.ALLOW if approve else LeashDecision.DENY).value,
+                rule_ids_json=rule_ids,
+                facts_json=ask.facts_json,
+                amount=ask.amount,
+                reason=_organiser_reason(approve, rule_ids, note),
+                actor="organiser",
+                status="FINAL",
+                approves_id=decision_id,
+            )
+            db.add(organiser_row)
+            db.flush()
+            result: dict[str, Any] | None = None
+            if approve:
+                result = get_engine().resume(
+                    db, action, subject_id, approved_decision_id=decision_id
+                )
+            else:
+                get_engine().cancel(db, action, subject_id, decision_id)
+            return LeashResolveResponse(
+                decision_id=organiser_row.id,
+                approves=decision_id,
+                actor="organiser",
+                result=result,
+            )
+    except BaseException:
+        # The claim UPDATE bypassed the ORM, so a rolled-back SAVEPOINT leaves the loaded row stale.
+        stale = db.identity_map.get(identity_key(LeashDecisionRecord, decision_id))
+        if stale is not None:
+            db.expire(stale)
+        raise
