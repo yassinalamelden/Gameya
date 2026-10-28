@@ -61,7 +61,7 @@ def save_policy(
 def create_initial_policy(
     db: Session, circle_id: str, preset: LeashPreset = "STANDARD"
 ) -> LeashPolicy:
-    return save_policy(db, circle_id, preset, LeashThresholds.model_validate({}), [])
+    return save_policy(db, circle_id, preset, LeashThresholds(), [])
 
 
 def get_active_policy(db: Session, circle_id: str) -> LeashPolicy:
