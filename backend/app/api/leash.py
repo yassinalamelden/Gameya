@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Iterator
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Annotated, Any, cast
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, FastAPI, Request
 from fastapi.responses import JSONResponse
@@ -99,11 +99,10 @@ class _PolicyPayload(BaseModel):
 
 
 def _invalid_policy(errors: list[dict[str, Any]]) -> LeashError:
-    # The envelope allows details to be a list; LeashError types it as a dict, so cast.
     return LeashError(
         LeashErrorCode.LEASH_POLICY_INVALID,
         "The Leash policy is invalid.",
-        cast("dict[str, Any]", errors),
+        {"errors": errors},
     )
 
 

@@ -130,8 +130,10 @@ def test_put_policy_gap_11h_422_policy_invalid(db: Session) -> None:
     assert r.status_code == 422
     err = r.json()["error"]
     assert err["code"] == "LEASH_POLICY_INVALID"
-    assert err["details"][0]["loc"] == ["thresholds", "reminder_min_gap_hours"]
-    assert isinstance(err["details"][0]["msg"], str)
+    assert isinstance(err["details"], dict)
+    first = err["details"]["errors"][0]
+    assert first["loc"] == ["thresholds", "reminder_min_gap_hours"]
+    assert isinstance(first["msg"], str)
 
 
 def test_put_policy_malformed_json_422(db: Session) -> None:
@@ -141,6 +143,7 @@ def test_put_policy_malformed_json_422(db: Session) -> None:
         headers={"Content-Type": "application/json"},
     )
     assert r.status_code == 422 and r.json()["error"]["code"] == "LEASH_POLICY_INVALID"
+    assert r.json()["error"]["details"]["errors"][0]["loc"] == []
 
 
 def payout_facts(payout_id: str, name: str = "Amina") -> PayoutFacts:
