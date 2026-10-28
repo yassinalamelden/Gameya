@@ -110,9 +110,17 @@ def _result(row: LeashDecisionRecord) -> GuardResult:
     )
 
 
+MAX_CHAIN_DEPTH = 10
+
+
 def _approved_rule_ids(
     db: Session, action: GuardAction, subject_id: str, approved_decision_id: str
 ) -> list[str]:
+    """Union of rule_ids along the approves_id chain, starting at the approved row.
+
+    A resume re-check can raise a new ASK that carries ``approves_id`` = the ASK it re-checked, so
+    approving the newest ASK must keep the waivers of every earlier approval on the chain.
+    """
     row = db.get(LeashDecisionRecord, approved_decision_id)
     if (
         row is None
@@ -133,7 +141,25 @@ def _approved_rule_ids(
     ).first()
     if already_used is not None:
         raise ValueError(f"decision {approved_decision_id} has already been used")
-    return list(row.rule_ids_json)
+
+    waived: list[str] = []
+    current: LeashDecisionRecord | None = row
+    depth = 0
+    while current is not None:
+        depth += 1
+        if depth > MAX_CHAIN_DEPTH:
+            raise ValueError(f"approval chain of {approved_decision_id} is deeper than 10")
+        if current.action != action.value or current.subject_id != subject_id:
+            raise ValueError(
+                f"approval chain of {approved_decision_id} mixes different actions or subjects"
+            )
+        waived.extend(rule for rule in current.rule_ids_json if rule not in waived)
+        current = (
+            db.get(LeashDecisionRecord, current.approves_id)
+            if current.approves_id is not None
+            else None
+        )
+    return waived
 
 
 def decide(

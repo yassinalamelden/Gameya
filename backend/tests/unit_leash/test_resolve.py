@@ -7,10 +7,16 @@ from typing import Any
 
 import pytest
 from backend.app.leash import service
-from backend.app.leash.facts import BaseFacts, PayoutFacts
+from backend.app.leash.facts import BaseFacts, ChaseInvoiceFacts, PayoutFacts
 from backend.app.leash.models import LeashDecisionRecord
+from backend.app.leash.policy import save_policy
 from backend.app.leash.service import LeashError, configure, decide, resolve
-from backend.app.schemas.contracts import GuardAction, LeashDecision, LeashErrorCode
+from backend.app.schemas.contracts import (
+    GuardAction,
+    LeashDecision,
+    LeashErrorCode,
+    LeashThresholds,
+)
 from sqlalchemy import event, select
 from sqlalchemy.orm import Session
 
@@ -251,3 +257,163 @@ def test_append_only(db: Session) -> None:
         assert m is not None, stmt
         cols = {part.split("=")[0].strip() for part in m.group(1).split(",")}
         assert cols == {"status", "resolved_at"}, stmt
+
+
+CH = GuardAction.SEND_CHASE_INVOICE
+
+
+def chase_facts(**kw: Any) -> ChaseInvoiceFacts:
+    data: dict[str, Any] = {
+        "now": NOW,
+        "circle_id": "c1",
+        "member_id": "m2",
+        "member_name": "Omar",
+        "invoice_amount": "100.00",
+        "unpaid_amount": "100.00",
+        "due_at": datetime(2026, 10, 20, tzinfo=UTC),
+        "open_invoice_count": 0,
+        "no_auto_chase": False,
+    }
+    return ChaseInvoiceFacts.model_validate(data | kw)
+
+
+def payout_facts_with(**kw: Any) -> PayoutFacts:
+    return PayoutFacts.model_validate(amina_facts().model_dump() | kw)
+
+
+def approve_until_allowed(db: Session, action: GuardAction, subject_id: str) -> list[list[str]]:
+    """Approve each new ASK in turn; return the rule_ids of every ASK seen."""
+    seen: list[list[str]] = []
+    outcome = decide(db, action, subject_id)
+    for _ in range(4):
+        if outcome.decision is not LeashDecision.ASK:
+            break
+        seen.append(outcome.rule_ids)
+        resp = resolve(db, outcome.decision_id, True, "org1")
+        assert resp.result is not None
+        outcome = decide_result(db, resp.result["decision_id"])
+    assert outcome.decision is LeashDecision.ALLOW
+    return seen
+
+
+def decide_result(db: Session, decision_id: str) -> Any:
+    row = db.get(LeashDecisionRecord, decision_id)
+    assert row is not None
+    return service._result(row)
+
+
+def set_facts(facts_map: dict[str, tuple[str, BaseFacts]]) -> None:
+    configure(FakeFactsProvider(facts_map), ResumingEngine())
+
+
+def test_strict_reserve_cover_terminates(db: Session) -> None:
+    save_policy(db, "c1", "STRICT", LeashThresholds(), [])
+    set_facts(
+        {"p": ("payout", payout_facts_with(reserve_cover_used=True, payout_email_changed_at=None))}
+    )
+    seen = approve_until_allowed(db, PO, "p")
+    assert seen == [["PO-03"], ["PO-00", "STRICT"]]
+
+
+def test_strict_recently_changed_email_terminates(db: Session) -> None:
+    save_policy(db, "c1", "STRICT", LeashThresholds(), [])
+    set_facts({"p": ("payout", amina_facts())})
+    seen = approve_until_allowed(db, PO, "p")
+    assert seen == [["PO-01"], ["PO-00", "STRICT"]]
+
+
+def test_strict_organiser_recipient_terminates(db: Session) -> None:
+    save_policy(db, "c1", "STRICT", LeashThresholds(), [])
+    set_facts(
+        {
+            "p": (
+                "payout",
+                payout_facts_with(recipient_is_organiser=True, payout_email_changed_at=None),
+            )
+        }
+    )
+    assert approve_until_allowed(db, PO, "p") == [["PO-05"], ["PO-00", "STRICT"]]
+
+
+def test_standard_chase_not_yet_due_terminates(db: Session) -> None:
+    set_facts(
+        {
+            "inv": (
+                "chase_plan",
+                chase_facts(no_auto_chase=True, due_at=datetime(2026, 10, 28, tzinfo=UTC)),
+            )
+        }
+    )
+    assert approve_until_allowed(db, CH, "inv") == [["G-03"], ["DEFAULT-ASK"]]
+
+
+def test_chain_waivers_are_union_of_the_chain(db: Session) -> None:
+    save_policy(db, "c1", "STRICT", LeashThresholds(), [])
+    set_facts(
+        {"p": ("payout", payout_facts_with(reserve_cover_used=True, payout_email_changed_at=None))}
+    )
+    first = decide(db, PO, "p")
+    r1 = resolve(db, first.decision_id, True, "org1")
+    assert r1.result is not None
+    second_id = r1.result["decision_id"]
+    r2 = resolve(db, second_id, True, "org1")
+    assert r2.result is not None
+    final = db.get(LeashDecisionRecord, r2.result["decision_id"])
+    assert final is not None and final.facts_json["approved_rule_ids"] == [
+        "PO-00",
+        "STRICT",
+        "PO-03",
+    ]
+
+
+def test_chain_deeper_than_ten_rejected(db: Session) -> None:
+    prev: str | None = None
+    for i in range(12):
+        row_id = f"chain{i:02d}"
+        db.add(
+            LeashDecisionRecord(
+                id=row_id,
+                circle_id="c1",
+                policy_version=1,
+                action=PO.value,
+                subject_type="payout",
+                subject_id="pay_amina",
+                decision="ASK",
+                rule_ids_json=["PO-01"],
+                facts_json={},
+                amount=None,
+                reason="x",
+                actor="leash",
+                status="APPROVED",
+                approves_id=prev,
+            )
+        )
+        db.flush()
+        prev = row_id
+    with pytest.raises(ValueError, match="chain"):
+        decide(db, PO, "pay_amina", approved_decision_id="chain11")
+
+
+def test_chain_row_for_other_subject_rejected(db: Session) -> None:
+    for rid, subj, prev in (("a1", "other", None), ("a2", "pay_amina", "a1")):
+        db.add(
+            LeashDecisionRecord(
+                id=rid,
+                circle_id="c1",
+                policy_version=1,
+                action=PO.value,
+                subject_type="payout",
+                subject_id=subj,
+                decision="ASK",
+                rule_ids_json=["PO-01"],
+                facts_json={},
+                amount=None,
+                reason="x",
+                actor="leash",
+                status="APPROVED",
+                approves_id=prev,
+            )
+        )
+    db.flush()
+    with pytest.raises(ValueError, match="chain"):
+        decide(db, PO, "pay_amina", approved_decision_id="a2")
