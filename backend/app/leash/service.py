@@ -9,7 +9,7 @@ from typing import Any, Protocol
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ..schemas.contracts import GuardAction, GuardResult, LeashDecision
+from ..schemas.contracts import GuardAction, GuardResult, LeashDecision, LeashErrorCode
 from .facts import BaseFacts, ChaseInvoiceFacts, FactsProvider, PayoutFacts
 from .guard import evaluate_rules
 from .ids import new_id
@@ -19,6 +19,31 @@ from .templates import render_reason
 
 _DISABLED_VALUES = {"false", "0", "no"}
 DISABLED_RULE = "LEASH_DISABLED"
+
+_HTTP_STATUS: dict[LeashErrorCode, int] = {
+    LeashErrorCode.ORGANISER_ONLY: 401,
+    LeashErrorCode.LEASH_DECISION_NOT_FOUND: 404,
+    LeashErrorCode.LEASH_ALREADY_RESOLVED: 409,
+    LeashErrorCode.LEASH_STALE_DECISION: 409,
+    LeashErrorCode.LEASH_POLICY_INVALID: 422,
+    LeashErrorCode.LEASH_DISABLED: 503,
+}
+
+
+class LeashError(Exception):
+    """A Leash failure the API layer maps to an HTTP error."""
+
+    def __init__(
+        self, code: LeashErrorCode, message: str, details: dict[str, Any] | None = None
+    ) -> None:
+        super().__init__(message)
+        self.code = code
+        self.message = message
+        self.details: dict[str, Any] = details or {}
+
+    @property
+    def http_status(self) -> int:
+        return _HTTP_STATUS[self.code]
 
 
 class EngineResume(Protocol):
