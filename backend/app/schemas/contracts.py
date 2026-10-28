@@ -31,12 +31,12 @@ LeashPreset = Literal["HANDS_OFF", "STANDARD", "STRICT"]
 
 
 class LeashThresholds(BaseModel):
-    email_change_window_days: int = Field(7, ge=1, le=30)
-    reminder_min_gap_hours: int = Field(48, ge=12, le=168)
-    max_reminders_per_cycle: int = Field(3, ge=1, le=10)
-    swap_cooldown_hours: int = Field(24, ge=0, le=168)
-    swap_near_payout_hours: int = Field(48, ge=0, le=168)
-    high_risk_p_late: Decimal = Field(Decimal("0.50"), ge=0, le=1)
+    email_change_window_days: int = Field(default=7, ge=1, le=30)
+    reminder_min_gap_hours: int = Field(default=48, ge=12, le=168)
+    max_reminders_per_cycle: int = Field(default=3, ge=1, le=10)
+    swap_cooldown_hours: int = Field(default=24, ge=0, le=168)
+    swap_near_payout_hours: int = Field(default=48, ge=0, le=168)
+    high_risk_p_late: Decimal = Field(default=Decimal("0.50"), ge=0, le=1)
 
 
 class LeashPolicy(BaseModel):
