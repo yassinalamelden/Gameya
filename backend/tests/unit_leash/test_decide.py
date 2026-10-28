@@ -183,3 +183,62 @@ def test_unconfigured_raises(db: Session) -> None:
     service._facts = None
     with pytest.raises(RuntimeError):
         decide(db, PO, "pay_sara")
+
+
+def test_approval_is_single_use(db: Session) -> None:
+    ask = decide(db, PO, "pay_amina")
+    rows(db)[0].status = "APPROVED"
+    db.flush()
+    first = decide(db, PO, "pay_amina", approved_decision_id=ask.decision_id)
+    assert first.decision is LeashDecision.ALLOW
+    with pytest.raises(ValueError):
+        decide(db, PO, "pay_amina", approved_decision_id=ask.decision_id)
+    assert len(rows(db)) == 2
+
+
+def test_organiser_row_does_not_count_as_a_use(db: Session) -> None:
+    ask = decide(db, PO, "pay_amina")
+    ask_row = rows(db)[0]
+    ask_row.status = "APPROVED"
+    db.add(
+        LeashDecisionRecord(
+            id="lsd_org",
+            circle_id="c1",
+            policy_version=1,
+            action=PO.value,
+            subject_type="payout",
+            subject_id="pay_amina",
+            decision="ALLOW",
+            rule_ids_json=["PO-01"],
+            facts_json={},
+            reason="Approved by organiser: PO-01.",
+            actor="organiser",
+            status="FINAL",
+            approves_id=ask.decision_id,
+        )
+    )
+    db.flush()
+    r = decide(db, PO, "pay_amina", approved_decision_id=ask.decision_id)
+    assert r.decision is LeashDecision.ALLOW
+
+
+def test_approval_must_match_action(db: Session) -> None:
+    ask = decide(db, PO, "pay_amina")
+    rows(db)[0].status = "APPROVED"
+    db.flush()
+    with pytest.raises(ValueError):
+        decide(db, CH, "pay_amina", approved_decision_id=ask.decision_id)
+
+
+def test_open_row_for_other_subject_does_not_dedupe(db: Session) -> None:
+    amina = decide(db, PO, "pay_amina")
+    sara = decide(db, PO, "pay_sara")
+    assert sara.decision_id != amina.decision_id and sara.decision is LeashDecision.ALLOW
+    assert len(rows(db)) == 2
+
+
+def test_open_row_for_other_action_does_not_dedupe(db: Session) -> None:
+    ask = decide(db, PO, "pay_amina")
+    other = decide(db, CH, "inv_dup")
+    assert other.decision_id != ask.decision_id
+    assert {r.action for r in rows(db)} == {PO.value, CH.value}

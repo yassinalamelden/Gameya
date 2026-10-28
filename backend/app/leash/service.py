@@ -115,6 +115,16 @@ def _approved_rule_ids(
         raise ValueError(
             f"decision {approved_decision_id} is not an approved decision for this subject"
         )
+    already_used = db.scalars(
+        select(LeashDecisionRecord.id)
+        .where(
+            LeashDecisionRecord.approves_id == approved_decision_id,
+            LeashDecisionRecord.actor == "leash",
+        )
+        .limit(1)
+    ).first()
+    if already_used is not None:
+        raise ValueError(f"decision {approved_decision_id} has already been used")
     return list(row.rule_ids_json)
 
 
