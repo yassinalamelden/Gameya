@@ -287,3 +287,24 @@ def test_policy_no_auto_chase_list_asks_g03() -> None:
 def test_policy_no_auto_chase_list_other_member_unchanged() -> None:
     p = listed_policy("STANDARD", ["m9"])
     assert evaluate_rules(p, CH, base(CH)) == (ALLOW, ["G-01"])
+
+
+def test_strict_approved_default_ask_still_asks_strict() -> None:
+    # DEFAULT-ASK waived -> ALLOW, then STRICT turns every allowed money action into an ASK.
+    facts = base(CH) | {"due_at": FAR_DUE, "approved_rule_ids": ["DEFAULT-ASK"]}
+    assert evaluate_rules(policy("STRICT"), CH, facts) == (ASK, ["DEFAULT-ASK", "STRICT"])
+
+
+def test_strict_default_ask_and_strict_both_approved_allows() -> None:
+    facts = base(CH) | {"due_at": FAR_DUE, "approved_rule_ids": ["DEFAULT-ASK", "STRICT"]}
+    assert evaluate_rules(policy("STRICT"), CH, facts) == (ALLOW, ["DEFAULT-ASK"])
+
+
+def test_g03_with_g02_denies() -> None:
+    facts = base(CH) | {"no_auto_chase": True, "open_invoice_count": 1}
+    assert evaluate_rules(policy(), CH, facts) == (DENY, ["G-02"])
+
+
+def test_hands_off_chase_no_auto_chase_asks() -> None:
+    facts = base(CH) | {"no_auto_chase": True}
+    assert evaluate_rules(policy("HANDS_OFF"), CH, facts) == (ASK, ["G-03"])

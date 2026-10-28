@@ -9,6 +9,7 @@ from backend.app.api import leash as api
 from backend.app.api.leash import Actor, get_actor, get_db, register_leash_errors
 from backend.app.leash import LeashError, configure, decide, service
 from backend.app.leash.facts import BaseFacts, PayoutFacts
+from backend.app.leash.models import LeashDecisionRecord
 from backend.app.schemas.contracts import GuardAction, LeashErrorCode
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -297,3 +298,22 @@ def test_engine_failure_rolls_back_and_propagates(db: Session) -> None:
     with pytest.raises(RuntimeError):
         client.post(f"/api/v1/leash/decisions/{did}/approve")
     assert len(client.get("/api/v1/circles/c1/leash/inbox").json()["items"]) == 1
+
+
+@pytest.mark.usefixtures("wired")
+def test_organiser_of_other_circle_cannot_resolve_or_read(db: Session, engine: FakeEngine) -> None:
+    did = decide(db, PO, "pay_amina").decision_id  # circle c1
+    db.commit()
+    other = Actor(user_id="o2", organiser_of=frozenset({"c2"}))
+    client = make_client(db, other)
+    for verb in ("approve", "reject"):
+        denied = client.post(f"/api/v1/leash/decisions/{did}/{verb}")
+        assert denied.status_code == 401
+        assert denied.json()["error"]["code"] == "ORGANISER_ONLY"
+    assert client.get("/api/v1/circles/c1/leash/inbox").status_code == 401
+    assert engine.resumed == [] and engine.cancelled == []
+    row = db.get(LeashDecisionRecord, did)
+    assert row is not None and row.status == "OPEN"
+    assert (
+        len(make_client(db, ORGANISER).get("/api/v1/circles/c1/leash/inbox").json()["items"]) == 1
+    )
