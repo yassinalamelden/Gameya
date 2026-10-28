@@ -66,7 +66,7 @@ def facts() -> dict[str, tuple[str, BaseFacts]]:
                 payout_email_changed_at=datetime(2026, 10, 27, 12, tzinfo=UTC),
             ),
         ),
-        "inv_dup": ("invoice", chase(open_invoice_count=1)),
+        "inv_dup": ("chase_plan", chase(open_invoice_count=1)),
     }
 
 
@@ -250,7 +250,7 @@ def test_open_row_for_other_action_does_not_dedupe(db: Session) -> None:
                         payout_email_changed_at=datetime(2026, 10, 27, 12, tzinfo=UTC),
                     ),
                 ),
-                (CH, "shared"): ("invoice", chase()),
+                (CH, "shared"): ("chase_plan", chase()),
             }
         ),
         FakeEngine(),
@@ -261,3 +261,10 @@ def test_open_row_for_other_action_does_not_dedupe(db: Session) -> None:
     assert other.decision_id != ask.decision_id
     assert {r.action for r in rows(db)} == {PO.value, CH.value}
     assert len(rows(db)) == 2
+
+
+def test_unknown_subject_type_rejected_and_nothing_stored(db: Session) -> None:
+    configure(FakeFactsProvider({"bad": ("invoice", chase())}), FakeEngine())
+    with pytest.raises(ValueError, match="subject_type"):
+        decide(db, CH, "bad")
+    assert rows(db) == []

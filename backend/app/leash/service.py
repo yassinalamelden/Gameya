@@ -27,6 +27,7 @@ from .templates import MAX_REASON_LEN, render_reason
 
 _DISABLED_VALUES = {"false", "0", "no"}
 DISABLED_RULE = "LEASH_DISABLED"
+_SUBJECT_TYPES = {"payout", "chase_plan", "swap"}
 
 _HTTP_STATUS: dict[LeashErrorCode, int] = {
     LeashErrorCode.ORGANISER_ONLY: 401,
@@ -170,6 +171,8 @@ def decide(
 ) -> GuardResult:
     """Guard one money action and log the outcome. Flushes only; the caller commits."""
     subject_type, facts = get_facts_provider().build(db, action, subject_id)
+    if subject_type not in _SUBJECT_TYPES:
+        raise ValueError(f"unknown subject_type {subject_type!r}; expected one of {_SUBJECT_TYPES}")
 
     if approved_decision_id is not None:
         facts.approved_rule_ids = _approved_rule_ids(db, action, subject_id, approved_decision_id)
