@@ -273,3 +273,17 @@ def test_datetime_objects_and_decimal_accepted() -> None:
         "unpaid_amount": 100,
     }
     assert evaluate_rules(policy(), CH, facts) == (ALLOW, ["G-01"])
+
+
+def listed_policy(preset: str, member_ids: list[str]) -> LeashPolicy:
+    return policy(preset).model_copy(update={"no_auto_chase_member_ids": member_ids})
+
+
+def test_policy_no_auto_chase_list_asks_g03() -> None:
+    p = listed_policy("STANDARD", ["m2"])
+    assert evaluate_rules(p, CH, base(CH)) == (ASK, ["G-03"])
+
+
+def test_policy_no_auto_chase_list_other_member_unchanged() -> None:
+    p = listed_policy("STANDARD", ["m9"])
+    assert evaluate_rules(p, CH, base(CH)) == (ALLOW, ["G-01"])

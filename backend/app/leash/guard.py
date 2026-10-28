@@ -45,7 +45,8 @@ def _payout(f: PayoutFacts, t: LeashThresholds) -> Evaluation:
     return matched, ("PO-00", LeashDecision.ALLOW)
 
 
-def _chase(f: ChaseInvoiceFacts, t: LeashThresholds) -> Evaluation:
+def _chase(f: ChaseInvoiceFacts, policy: LeashPolicy) -> Evaluation:
+    t = policy.thresholds
     gap = timedelta(hours=t.reminder_min_gap_hours)
     amounts_equal = f.invoice_amount == f.unpaid_amount
     recently_sent = f.last_invoice_sent_at is not None and f.last_invoice_sent_at > f.now - gap
@@ -54,7 +55,7 @@ def _chase(f: ChaseInvoiceFacts, t: LeashThresholds) -> Evaluation:
         matched.append(("G-04", LeashDecision.DENY))
     if f.open_invoice_count > 0 or recently_sent:
         matched.append(("G-02", LeashDecision.DENY))
-    if f.no_auto_chase:
+    if f.no_auto_chase or f.member_id in policy.no_auto_chase_member_ids:
         matched.append(("G-03", LeashDecision.ASK))
     clean = amounts_equal and f.now >= f.due_at + timedelta(days=1) and f.open_invoice_count == 0
     fallback = ("G-01", LeashDecision.ALLOW) if clean else ("DEFAULT-ASK", LeashDecision.ASK)
@@ -116,7 +117,7 @@ def evaluate_rules(
     if isinstance(parsed, PayoutFacts):
         evaluation = _payout(parsed, t)
     elif isinstance(parsed, ChaseInvoiceFacts):
-        evaluation = _chase(parsed, t)
+        evaluation = _chase(parsed, policy)
     elif isinstance(parsed, ReminderFacts):
         evaluation = _reminder(parsed, t)
     else:
