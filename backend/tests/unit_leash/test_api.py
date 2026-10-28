@@ -238,3 +238,59 @@ def test_decisions_newest_first(db: Session) -> None:
     assert rows[0]["status"] == "OPEN" and rows[0]["amount"] == "600.00"
     assert len(client.get("/api/v1/circles/c1/leash/decisions?limit=1").json()) == 1
     assert make_client(db, MEMBER).get("/api/v1/circles/c1/leash/decisions").status_code == 401
+
+
+@pytest.mark.usefixtures("wired")
+def test_approve_then_approve_again_409(db: Session, engine: FakeEngine) -> None:
+    did = decide(db, PO, "pay_amina").decision_id
+    db.commit()
+    client = make_client(db, ORGANISER)
+    first = client.post(f"/api/v1/leash/decisions/{did}/approve", json={"note": "ok"})
+    assert first.status_code == 200
+    body = first.json()
+    assert body["approves"] == did and body["actor"] == "organiser"
+    assert body["result"] == {"status": "resumed", "subject_id": "pay_amina"}
+    second = client.post(f"/api/v1/leash/decisions/{did}/approve", json={})
+    assert second.status_code == 409
+    assert second.json()["error"]["code"] == "LEASH_ALREADY_RESOLVED"
+    assert len(engine.resumed) == 1
+    db.rollback()  # the approval was committed
+    assert client.get("/api/v1/circles/c1/leash/inbox").json() == {"items": []}
+
+
+@pytest.mark.usefixtures("wired")
+def test_reject_returns_200_and_inbox_empty(db: Session, engine: FakeEngine) -> None:
+    did = decide(db, PO, "pay_amina").decision_id
+    db.commit()
+    client = make_client(db, ORGANISER)
+    r = client.post(f"/api/v1/leash/decisions/{did}/reject")  # no body at all
+    assert r.status_code == 200
+    assert r.json()["approves"] == did and r.json()["result"] is None
+    assert engine.cancelled == [(PO, "pay_amina", did)]
+    assert client.get("/api/v1/circles/c1/leash/inbox").json() == {"items": []}
+    assert client.get("/api/v1/circles/c1/leash/decisions").json()[0]["actor"] == "organiser"
+
+
+@pytest.mark.usefixtures("wired")
+def test_resolve_errors_404_and_401(db: Session, engine: FakeEngine) -> None:
+    did = decide(db, PO, "pay_amina").decision_id
+    db.commit()
+    missing = make_client(db, ORGANISER).post("/api/v1/leash/decisions/lsd_nope/approve")
+    assert missing.status_code == 404
+    assert missing.json()["error"]["code"] == "LEASH_DECISION_NOT_FOUND"
+    for verb in ("approve", "reject"):
+        denied = make_client(db, MEMBER).post(f"/api/v1/leash/decisions/{did}/{verb}")
+        assert denied.status_code == 401
+        assert denied.json()["error"]["code"] == "ORGANISER_ONLY"
+    assert engine.resumed == [] and engine.cancelled == []
+
+
+@pytest.mark.usefixtures("wired")
+def test_engine_failure_rolls_back_and_propagates(db: Session) -> None:
+    configure(service.get_facts_provider(), FakeEngine(raise_on_resume=RuntimeError("down")))
+    did = decide(db, PO, "pay_amina").decision_id
+    db.commit()
+    client = make_client(db, ORGANISER)
+    with pytest.raises(RuntimeError):
+        client.post(f"/api/v1/leash/decisions/{did}/approve")
+    assert len(client.get("/api/v1/circles/c1/leash/inbox").json()["items"]) == 1

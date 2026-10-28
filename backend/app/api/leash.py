@@ -14,7 +14,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 from ulid import ULID
 
-from ..leash import LeashError, leash_enabled
+from ..leash import LeashError, leash_enabled, resolve
 from ..leash.models import LeashDecisionRecord
 from ..leash.policy import get_active_policy, save_policy
 from ..schemas.contracts import (
@@ -27,6 +27,8 @@ from ..schemas.contracts import (
     LeashInboxRecipient,
     LeashPolicy,
     LeashPreset,
+    LeashResolveRequest,
+    LeashResolveResponse,
     LeashThresholds,
 )
 
@@ -215,3 +217,37 @@ def get_decisions(cid: str, db: DbDep, actor: ActorDep, limit: int = 100) -> lis
         .limit(capped)
     )
     return [_decision_row(r) for r in rows]
+
+
+def _resolve(
+    did: str, approve: bool, body: LeashResolveRequest | None, db: Session, actor: Actor
+) -> LeashResolveResponse:
+    row = db.get(LeashDecisionRecord, did)
+    if row is None:
+        raise LeashError(
+            LeashErrorCode.LEASH_DECISION_NOT_FOUND,
+            "Leash decision not found.",
+            {"decision_id": did},
+        )
+    _require_organiser(actor, row.circle_id)
+    try:
+        response = resolve(db, did, approve, actor.user_id, body.note if body else None)
+        db.commit()
+    except BaseException:
+        db.rollback()
+        raise
+    return response
+
+
+@router.post("/leash/decisions/{did}/approve", response_model=LeashResolveResponse)
+def approve_decision(
+    did: str, db: DbDep, actor: ActorDep, body: LeashResolveRequest | None = None
+) -> LeashResolveResponse:
+    return _resolve(did, True, body, db, actor)
+
+
+@router.post("/leash/decisions/{did}/reject", response_model=LeashResolveResponse)
+def reject_decision(
+    did: str, db: DbDep, actor: ActorDep, body: LeashResolveRequest | None = None
+) -> LeashResolveResponse:
+    return _resolve(did, False, body, db, actor)
