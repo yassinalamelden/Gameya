@@ -29,3 +29,10 @@ def test_fields_and_default_details() -> None:
     assert err.message == "done" and err.details == {"decision_id": "lsd_1"}
     assert str(err) == "done"
     assert LeashError(LeashErrorCode.LEASH_DISABLED, "off").details == {}
+
+
+def test_package_exports_resolve_and_leash_error() -> None:
+    from backend.app import leash
+
+    assert {"resolve", "LeashError"} <= set(leash.__all__)
+    assert leash.LeashError is LeashError
