@@ -2,9 +2,20 @@ export type MemberId = string;
 export type CircleId = string;
 
 export type Environment = "local_test" | "sandbox" | "production";
-export type Locale = "en" | "ar";
+export type Locale = "en" | "ar-EG";
 export type Role = "organiser" | "member";
-export type BillingFrequency = "weekly" | "biweekly" | "monthly";
+export type CycleUnit = "WEEK" | "MONTH";
+
+export type NeedCategory =
+  | "WEDDING"
+  | "EDUCATION"
+  | "MEDICAL"
+  | "HOUSING"
+  | "BUSINESS"
+  | "TRAVEL"
+  | "OTHER";
+
+export type Flexibility = "low" | "medium" | "high";
 
 export type ContributionStatus =
   | "pending"
@@ -47,7 +58,8 @@ export type AgentName =
   | "swap_broker"
   | "needs_extractor"
   | "fair_order"
-  | "stress_test";
+  | "stress_test"
+  | "leash";
 
 export type ToolName =
   | "create_product"
@@ -77,8 +89,6 @@ export type ChaseAction = "noop" | "nudge" | "invoice";
 
 export type SanityStatus = "healthy" | "degraded" | "down";
 
-export type NeedKind = "deadline" | "flexible";
-
 export interface ToolCall {
   name: ToolName;
   arguments: Record<string, string | number | null>;
@@ -91,27 +101,34 @@ export interface ChatMessage {
   created_at: string | null;
 }
 
-export interface RiskFactor {
-  key: string;
-  weight: number;
-  description: string;
+export interface ReliabilityFactor {
+  feature: string;
+  contribution: number;
+  label: string;
 }
 
 export interface ReliabilityScore {
   member_id: MemberId;
   p_late: number;
-  top_factors: RiskFactor[];
+  top_factors: ReliabilityFactor[];
 }
 
 export interface ReliabilityFeatures {
-  member_id: MemberId;
-  features: Record<string, number>;
+  on_time_ratio: number;
+  avg_days_late: number;
+  cycles_completed: number;
+  failed_payments: number;
+  invoices_needed: number;
+  circles_completed: number;
+  account_age_days: number;
 }
 
 export interface MemberSnapshot {
   member_id: MemberId;
   display_name: string;
   role: Role;
+  locale: Locale;
+  slot_index: number | null;
   subscription_status: SubscriptionStatus;
   contribution_status: ContributionStatus | null;
   days_late: number;
@@ -128,19 +145,30 @@ export interface CycleSnapshot {
   unpaid_members: MemberSnapshot[];
 }
 
+export interface CircleSnapshot {
+  circle_id: CircleId;
+  name: string;
+  contribution_amount: string;
+  currency: "USD";
+  cycle_unit: CycleUnit;
+  size_n: number;
+  start_date: string;
+  reserve_pct: string;
+}
+
 export interface CircleSpec {
   name: string;
   member_count: number;
   contribution_amount: string;
   currency: "USD";
-  frequency: BillingFrequency;
+  cycle_unit: CycleUnit;
   start_date: string;
   organiser_id: MemberId | null;
   purpose: string | null;
   confirmed: boolean;
 }
 
-export interface CircleSnapshot {
+export interface CircleDetail {
   circle_id: CircleId;
   spec: CircleSpec;
   members: MemberSnapshot[];
@@ -169,27 +197,21 @@ export interface CircleAgentTurn {
   needs_confirmation: boolean;
 }
 
-export interface NeedItem {
-  kind: NeedKind;
-  description: string;
-  target_date: string | null;
-  urgency: number;
-  amount: string | null;
-}
-
 export interface NeedExtraction {
-  member_id: MemberId;
-  raw_text: string;
-  locale: Locale;
-  needs: NeedItem[];
+  member_id: MemberId | null;
+  category: NeedCategory;
+  target_date: string | null;
+  amount_needed: string | null;
+  urgency: number;
+  flexibility: Flexibility;
   confidence: number;
+  raw_month_hint: string | null;
 }
 
 export interface MemberProfile {
-  member_id: MemberId;
-  display_name: string;
-  needs: NeedExtraction[];
-  reliability: ReliabilityScore | null;
+  member: MemberSnapshot;
+  need: NeedExtraction | null;
+  reliability_p_late: number;
 }
 
 export interface SlotDate {
@@ -200,13 +222,14 @@ export interface SlotDate {
 export interface SlotAssignment {
   member_id: MemberId;
   slot_index: number;
-  explanation: string;
+  payout_date: string;
+  cost: number;
 }
 
 export interface OrderProposal {
-  circle_id: CircleId;
-  deterministic_seed: number;
-  slots: SlotAssignment[];
+  assignments: SlotAssignment[];
+  seed: number;
+  explanations: Partial<Record<MemberId, string>>;
 }
 
 export interface Viewer {
@@ -265,18 +288,18 @@ export interface SwapProposal {
   agent_decision: AgentDecision | null;
 }
 
-export interface ReserveOutcome {
+export interface ReservePoint {
   reserve_pct: string;
   completion_probability: number;
-  expected_covered_cycles: number;
+  expected_shortfall: string;
 }
 
 export interface StressTestResult {
-  circle_id: CircleId;
   n_sims: number;
   seed: number;
-  per_reserve: ReserveOutcome[];
+  points: ReservePoint[];
   recommended_reserve_pct: string;
+  explanation: string | null;
 }
 
 export interface AgentChatSession {
@@ -322,7 +345,7 @@ export interface PayPalReferences {
 }
 
 export interface CircleCreateResponse {
-  circle: CircleSnapshot;
+  circle: CircleDetail;
   paypal: PayPalReferences;
 }
 
@@ -344,7 +367,7 @@ export interface NeedSubmissionRequest {
 }
 
 export interface OrderProposeRequest {
-  deterministic_seed: number;
+  seed: number;
 }
 
 export interface OrderApprovalRequest {
@@ -355,11 +378,6 @@ export interface StressTestRequest {
   reserve_pcts: string[];
   n_sims: number;
   seed: number;
-}
-
-export interface StressTestResponse {
-  result: StressTestResult;
-  explanation: string;
 }
 
 export interface CopilotQuestionRequest {
@@ -403,14 +421,6 @@ export interface LedgerRow {
   created_at: string | null;
 }
 
-export interface LedgerResponse {
-  circle_id: CircleId;
-  rows: LedgerRow[];
-  payouts: PayoutRow[];
-  contributions_total: string;
-  paid_out_total: string;
-}
-
 export interface PayoutRow {
   payout_id: string;
   cycle_index: number;
@@ -419,6 +429,14 @@ export interface PayoutRow {
   amount: string;
   status: PayoutStatus;
   created_at: string | null;
+}
+
+export interface LedgerResponse {
+  circle_id: CircleId;
+  rows: LedgerRow[];
+  payouts: PayoutRow[];
+  contributions_total: string;
+  paid_out_total: string;
 }
 
 export interface AuditResponse {
@@ -458,4 +476,108 @@ export interface HealthResponse {
   llm: SanityStatus;
   database: SanityStatus;
   version: string;
+}
+
+export type GuardAction =
+  | "RELEASE_POT_PAYOUT"
+  | "SEND_CHASE_INVOICE"
+  | "SEND_INVOICE_REMINDER"
+  | "APPLY_SLOT_SWAP";
+
+export type LeashDecision = "ALLOW" | "ASK" | "DENY";
+
+export type LeashPreset = "HANDS_OFF" | "STANDARD" | "STRICT";
+
+export interface LeashThresholds {
+  email_change_window_days: number;
+  reminder_min_gap_hours: number;
+  max_reminders_per_cycle: number;
+  swap_cooldown_hours: number;
+  swap_near_payout_hours: number;
+  high_risk_p_late: string;
+}
+
+export interface LeashPolicy {
+  circle_id: CircleId;
+  version: number;
+  preset: LeashPreset;
+  thresholds: LeashThresholds;
+  no_auto_chase_member_ids: MemberId[];
+}
+
+export interface GuardResult {
+  decision: LeashDecision;
+  rule_ids: string[];
+  reason: string;
+  decision_id: string;
+}
+
+export interface LeashInboxRecipient {
+  member_id: MemberId;
+  name: string;
+  payout_email: string | null;
+}
+
+export type LeashSubjectType = "payout" | "chase_plan" | "swap";
+
+export interface LeashInboxItem {
+  decision_id: string;
+  action: GuardAction;
+  subject_type: LeashSubjectType;
+  subject_id: string;
+  cycle_index: number | null;
+  recipient: LeashInboxRecipient | null;
+  amount: string | null;
+  rule_ids: string[];
+  reason: string;
+  created_at: string;
+}
+
+export interface LeashInbox {
+  items: LeashInboxItem[];
+}
+
+export interface LeashDecisionRow {
+  decision_id: string;
+  circle_id: CircleId;
+  policy_version: number;
+  action: GuardAction;
+  subject_type: LeashSubjectType;
+  subject_id: string;
+  decision: LeashDecision;
+  rule_ids: string[];
+  amount: string | null;
+  reason: string;
+  actor: "leash" | "organiser";
+  status: "FINAL" | "OPEN" | "APPROVED" | "REJECTED";
+  created_at: string;
+  resolved_at: string | null;
+}
+
+export interface LeashResolveRequest {
+  note?: string | null;
+}
+
+export interface LeashResolveResponse {
+  decision_id: string;
+  approves: string;
+  actor: "organiser";
+  result: Record<string, string> | null;
+}
+
+export type LeashErrorCode =
+  | "ORGANISER_ONLY"
+  | "LEASH_DECISION_NOT_FOUND"
+  | "LEASH_ALREADY_RESOLVED"
+  | "LEASH_STALE_DECISION"
+  | "LEASH_POLICY_INVALID"
+  | "LEASH_DISABLED";
+
+export interface LeashApiError {
+  error: {
+    code: LeashErrorCode;
+    message: string;
+    details: Record<string, unknown> | null;
+    request_id: string | null;
+  };
 }
