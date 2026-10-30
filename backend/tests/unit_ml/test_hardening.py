@@ -5,7 +5,6 @@ from decimal import Decimal
 
 import numpy as np
 import pytest
-
 from app.ml.reliability.scorer import p_late_matrix, score_reliability
 from app.ml.stress_test import MAX_RESERVE_POINTS, MAX_SIMS, run_stress_test
 from app.schemas.contracts import CircleSnapshot, ReliabilityFeatures, ReliabilityScore
@@ -18,9 +17,7 @@ CIRCLE = CircleSnapshot(
     size_n=3,
     start_date=date(2026, 11, 1),
 )
-SCORES = [
-    ReliabilityScore(member_id=f"m{i}", p_late=0.2, top_factors=[]) for i in range(3)
-]
+SCORES = [ReliabilityScore(member_id=f"m{i}", p_late=0.2, top_factors=[]) for i in range(3)]
 
 
 # ---------- finding 1: extreme features must not crash the scorer ----------
@@ -46,9 +43,7 @@ def test_extreme_features_give_a_probability_not_a_crash(
         "circles_completed": 0,
         "account_age_days": 100,
     }
-    score = score_reliability(
-        ReliabilityFeatures.model_validate({**base, **overrides}), "m"
-    )
+    score = score_reliability(ReliabilityFeatures.model_validate({**base, **overrides}), "m")
     assert 0.0 <= score.p_late <= 1.0
 
 

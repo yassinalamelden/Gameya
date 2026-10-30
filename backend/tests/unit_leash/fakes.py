@@ -2,8 +2,8 @@
 
 from typing import Any
 
-from backend.app.leash.facts import BaseFacts
-from backend.app.schemas.contracts import GuardAction
+from app.leash.facts import BaseFacts
+from app.schemas.contracts import GuardAction
 from sqlalchemy.orm import Session
 
 

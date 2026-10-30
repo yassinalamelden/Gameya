@@ -5,7 +5,7 @@ engineering plan Section 7.3:
   1. pot = sum of PAID/COVERED contributions = amount * N before READY
   2. exactly one payout per cycle
   3. each member receives the pot exactly once
-  4. hook data still reconciles (totals, recipients, capped invoice)
+  4. hook data still reconciles (totals, recipients, capped invoice, 3% reserve)
 """
 
 from __future__ import annotations
@@ -27,8 +27,8 @@ def _ledger() -> c.LedgerResponse:
     return c.LedgerResponse.model_validate(_load("circle-ledger.json"))
 
 
-def _circle() -> c.CircleSnapshot:
-    return c.CircleSnapshot.model_validate(_load("circle-get.json"))
+def _circle() -> c.CircleDetail:
+    return c.CircleDetail.model_validate(_load("circle-get.json"))
 
 
 def test_pot_equals_paid_contributions_each_closed_cycle() -> None:
@@ -59,6 +59,13 @@ def test_exactly_one_payout_per_closed_cycle() -> None:
     assert len(paid_out_cycles) == len(set(paid_out_cycles)), "duplicate payout in a cycle"
     for payout in ledger.payouts:
         assert payout.batch_id == (f"gameya-{_circle().circle_id}-{payout.cycle_index}")
+
+
+def test_organiser_receives_the_first_pot() -> None:
+    circle = _circle()
+    assert circle.spec.organiser_id == "mem-amina"
+    first_slot = circle.cycles[0]
+    assert first_slot.recipient_id == "mem-amina", "slot 1 must go to Amina"
 
 
 def test_each_member_receives_the_pot_exactly_once() -> None:
@@ -119,18 +126,23 @@ def test_copilot_is_engine_facts_only_and_read_only() -> None:
 
 
 def test_stress_test_moves_completion_up_with_reserve() -> None:
-    payload = _load("circles-stress-test.json")
-    result = c.StressTestResult.model_validate(payload["result"])
-    probabilities = [r.completion_probability for r in result.per_reserve]
-    reserves = [r.reserve_pct for r in result.per_reserve]
+    result = c.StressTestResult.model_validate(_load("circles-stress-test.json"))
+    probabilities = [p.completion_probability for p in result.points]
+    reserves = [p.reserve_pct for p in result.points]
     assert reserves == sorted(reserves)
     assert probabilities == sorted(probabilities)
-    assert result.recommended_reserve_pct in set(reserves)
+    assert result.recommended_reserve_pct == Decimal("3")
+    shortfall = [p.expected_shortfall for p in result.points]
+    assert shortfall == sorted(shortfall, reverse=True)
+    assert result.explanation and "97%" in result.explanation
 
 
 def test_open_order_proposal_covers_every_member_uniquely() -> None:
     proposal = c.OrderProposal.model_validate(_load("circle-order-propose.json"))
-    members = {m.member_id for m in _circle().members}
-    slots = [s.slot_index for s in proposal.slots]
+    circle = _circle()
+    members = {m.member_id for m in circle.members}
+    slots = [a.slot_index for a in proposal.assignments]
     assert sorted(slots) == list(range(len(slots))), "every slot assigned exactly once"
-    assert {s.member_id for s in proposal.slots} == members
+    assert {a.member_id for a in proposal.assignments} == members
+    first_slot = next(a for a in proposal.assignments if a.slot_index == 0)
+    assert first_slot.member_id == circle.spec.organiser_id

@@ -37,7 +37,8 @@ _INSTRUCTION = re.compile(
     r"(?<![a-z])(?:password|passcode|pin|otp|login|log in|verify|confirm|reply|send|"
     r"transfer|pay (?:to|at|now)|click|whatsapp|telegram|call|contact|share|account|"
     r"details|cancel(?:l?ed)?|on hold|refund|ask|bank|card|iban|message|dm)(?![a-z])|"
-    r"كلمه السر|باسورد|الرقم السري|ابعت|شارك|حساب|بيانات|الغي|اتلغي|استرد|اسال|كارت|بنك|حول (?:ل|ال|علي)|اتصل|(?<!\w)كلم(?:ني|ه|ها)?(?!\w)|واتس"
+    r"كلمه السر|باسورد|الرقم السري|ابعت|شارك|حساب|بيانات|الغي|اتلغي|استرد|اسال|كارت|بنك|"
+    r"حول (?:ل|ال|علي)|اتصل|(?<!\w)كلم(?:ني|ه|ها)?(?!\w)|واتس"
 )
 
 

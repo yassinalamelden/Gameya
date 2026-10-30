@@ -2,7 +2,7 @@ from collections.abc import Iterator
 from typing import Any
 
 import pytest
-from backend.app.leash.models import LeashBase
+from app.leash.models import LeashBase
 from sqlalchemy import Connection, create_engine, event
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool

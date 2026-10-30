@@ -4,8 +4,6 @@ from datetime import date
 
 import numpy as np
 import pytest
-from sklearn.metrics import roc_auc_score
-
 from app.ml.reliability.features import build_features
 from app.ml.reliability.personas import PERSONA_FEATURES, persona_scores
 from app.ml.reliability.scorer import (
@@ -18,6 +16,7 @@ from app.ml.reliability.scorer import (
 from app.ml.reliability.train import train
 from app.ml.synthetic import generate_histories
 from app.schemas.contracts import ReliabilityFeatures
+from sklearn.metrics import roc_auc_score
 
 LEASH_HIGH_RISK_P_LATE = 0.5  # P2 Leash default threshold
 

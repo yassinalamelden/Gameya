@@ -32,9 +32,7 @@ def train(ds: SyntheticDataset, seed: int = 42) -> dict[str, Any]:
     X = design_matrix(ds.X)
 
     scaler = StandardScaler().fit(X[train_idx])
-    model = LogisticRegression(max_iter=1000).fit(
-        scaler.transform(X[train_idx]), ds.y[train_idx]
-    )
+    model = LogisticRegression(max_iter=1000).fit(scaler.transform(X[train_idx]), ds.y[train_idx])
 
     p_test = model.predict_proba(scaler.transform(X[test_idx]))[:, 1]
     return {
@@ -58,9 +56,7 @@ def train(ds: SyntheticDataset, seed: int = 42) -> dict[str, Any]:
 
 def main() -> None:
     artefact = train(generate_histories(n_members=10_000, seed=42))
-    COEFFICIENTS_PATH.write_text(
-        json.dumps(artefact, indent=2) + "\n", encoding="utf-8"
-    )
+    COEFFICIENTS_PATH.write_text(json.dumps(artefact, indent=2) + "\n", encoding="utf-8")
     print(json.dumps(artefact["metrics"], indent=2))
     for name, coef in zip(artefact["feature_names"], artefact["coefs"], strict=True):
         print(f"  {name:<20} {coef:+.3f}")

@@ -1,4 +1,4 @@
-from backend.app.leash.ids import new_id
+from app.leash.ids import new_id
 
 
 def test_prefixes_and_length() -> None:

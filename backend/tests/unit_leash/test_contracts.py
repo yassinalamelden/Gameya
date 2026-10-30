@@ -1,7 +1,7 @@
 from decimal import Decimal
 
 import pytest
-from backend.app.schemas.contracts import (
+from app.schemas.contracts import (
     GuardResult,
     LeashDecision,
     LeashThresholds,

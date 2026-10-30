@@ -1,12 +1,12 @@
 from decimal import Decimal
 
-from backend.app.leash.models import LeashPolicyRow
-from backend.app.leash.policy import (
+from app.leash.models import LeashPolicyRow
+from app.leash.policy import (
     create_initial_policy,
     get_active_policy,
     save_policy,
 )
-from backend.app.schemas.contracts import LeashThresholds
+from app.schemas.contracts import LeashThresholds
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 

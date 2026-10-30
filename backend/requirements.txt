@@ -2,4 +2,6 @@ fastapi>=0.115
 pydantic>=2.7
 sqlalchemy>=2.0
 python-ulid>=2.7
+numpy>=1.26
+scipy>=1.14
 paypal-agent-toolkit

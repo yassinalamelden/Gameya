@@ -36,7 +36,8 @@ class SyntheticParams:
     # Circle shape
     circles_per_member: tuple[int, int] = (1, 4)
     cycles_per_circle: tuple[int, int] = (6, 12)
-    # P(late) = sigmoid(intercept - discipline_w*discipline + shock_w*shock + post_payout_w*after_payout)
+    # P(late) = sigmoid(intercept - discipline_w*discipline
+    #                    + shock_w*shock + post_payout_w*after_payout)
     intercept: float = 2.5
     discipline_w: float = 8.0
     shock_w: float = 2.2
@@ -79,18 +80,14 @@ def generate_histories(
         discipline = float(rng.beta(*p.discipline_beta))
         shock_rate = float(rng.beta(*p.shock_rate_beta))
         age = int(rng.integers(p.account_age_days[0], p.account_age_days[1] + 1))
-        n_circles = int(
-            rng.integers(p.circles_per_member[0], p.circles_per_member[1] + 1)
-        )
+        n_circles = int(rng.integers(p.circles_per_member[0], p.circles_per_member[1] + 1))
 
         paid = late = failed = invoices = 0
         days_late_sum = 0.0
         shock = False
 
         for circles_done in range(n_circles):
-            length = int(
-                rng.integers(p.cycles_per_circle[0], p.cycles_per_circle[1] + 1)
-            )
+            length = int(rng.integers(p.cycles_per_circle[0], p.cycles_per_circle[1] + 1))
             payout_slot = int(rng.integers(0, length))
             u_shock, u_late, u_failed = rng.random((3, length))
             days_draw = rng.poisson(p.extra_days_late_w * (1.0 - discipline), length)
@@ -109,9 +106,7 @@ def generate_histories(
                 )
                 members.append(m)
 
-                shock = bool(
-                    u_shock[t] < (p.shock_persistence if shock else shock_rate)
-                )
+                shock = bool(u_shock[t] < (p.shock_persistence if shock else shock_rate))
                 logit = (
                     p.intercept
                     - p.discipline_w * discipline

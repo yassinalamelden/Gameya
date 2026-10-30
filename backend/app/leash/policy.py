@@ -5,18 +5,24 @@ from typing import Any, cast
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from ..schemas.contracts import LeashPolicy, LeashPreset, LeashThresholds
+from ..schemas.contracts import (
+    CircleId,
+    LeashPolicy,
+    LeashPreset,
+    LeashThresholds,
+    MemberId,
+)
 from .ids import new_id
 from .models import LeashPolicyRow
 
 
 def _to_policy(row: LeashPolicyRow) -> LeashPolicy:
     return LeashPolicy(
-        circle_id=row.circle_id,
+        circle_id=CircleId(row.circle_id),
         version=row.version,
-        preset=cast(LeashPreset, row.preset),
+        preset=cast("LeashPreset", row.preset),
         thresholds=LeashThresholds.model_validate(row.thresholds_json),
-        no_auto_chase_member_ids=list(row.no_auto_chase_json),
+        no_auto_chase_member_ids=[MemberId(x) for x in row.no_auto_chase_json],
     )
 
 

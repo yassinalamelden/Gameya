@@ -25,9 +25,7 @@ def build_features(
     if late_payments > payments_made:
         raise ValueError("late_payments cannot exceed payments_made")
     return ReliabilityFeatures(
-        on_time_ratio=(payments_made - late_payments) / payments_made
-        if payments_made
-        else 1.0,
+        on_time_ratio=(payments_made - late_payments) / payments_made if payments_made else 1.0,
         avg_days_late=total_days_late / late_payments if late_payments else 0.0,
         cycles_completed=payments_made,
         failed_payments=failed_payments,

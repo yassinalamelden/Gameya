@@ -1,8 +1,8 @@
 """LeashError carries a code, message, details and an HTTP status."""
 
 import pytest
-from backend.app.leash.service import LeashError
-from backend.app.schemas.contracts import LeashErrorCode
+from app.leash.service import LeashError
+from app.schemas.contracts import LeashErrorCode
 
 EXPECTED = {
     LeashErrorCode.ORGANISER_ONLY: 401,
@@ -32,7 +32,7 @@ def test_fields_and_default_details() -> None:
 
 
 def test_package_exports_resolve_and_leash_error() -> None:
-    from backend.app import leash
+    from app import leash
 
     assert {"resolve", "LeashError"} <= set(leash.__all__)
     assert leash.LeashError is LeashError

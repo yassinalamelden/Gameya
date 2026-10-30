@@ -7,9 +7,9 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from backend.app.leash.facts import PayoutFacts
-from backend.app.leash.templates import render_reason
-from backend.app.schemas.contracts import (
+from app.leash.facts import PayoutFacts
+from app.leash.templates import render_reason
+from app.schemas.contracts import (
     GuardAction,
     LeashDecision,
     LeashDecisionRow,

@@ -5,7 +5,6 @@ from decimal import Decimal
 from typing import Any
 
 import pytest
-
 from app.ml import stress_test
 from app.ml.reliability.personas import persona_scores
 from app.ml.stress_test import (
@@ -32,8 +31,7 @@ def circle(n: int = 6, amount: str = "100") -> CircleSnapshot:
 
 def scores(p_lates: list[float]) -> list[ReliabilityScore]:
     return [
-        ReliabilityScore(member_id=f"m{i}", p_late=p, top_factors=[])
-        for i, p in enumerate(p_lates)
+        ReliabilityScore(member_id=f"m{i}", p_late=p, top_factors=[]) for i, p in enumerate(p_lates)
     ]
 
 
@@ -45,12 +43,8 @@ def persona_result() -> StressTestResult:
 # ---------- TST-14 ----------
 def test_same_seed_is_deterministic_and_seed_matters() -> None:
     s = scores([0.1, 0.3, 0.5, 0.2, 0.6, 0.1])
-    assert run_stress_test(circle(), s, seed=42) == run_stress_test(
-        circle(), s, seed=42
-    )
-    assert run_stress_test(circle(), s, seed=42) != run_stress_test(
-        circle(), s, seed=43
-    )
+    assert run_stress_test(circle(), s, seed=42) == run_stress_test(circle(), s, seed=42)
+    assert run_stress_test(circle(), s, seed=42) != run_stress_test(circle(), s, seed=43)
 
 
 def test_twelve_members_ten_thousand_runs_under_budget() -> None:
@@ -88,17 +82,13 @@ def test_perfectly_reliable_circle_needs_no_reserve() -> None:
 def test_riskier_members_lower_the_odds() -> None:
     safe = run_stress_test(circle(), scores([0.03] * 6))
     risky = run_stress_test(circle(), scores([0.6] * 6))
-    assert (
-        risky.points[0].completion_probability < safe.points[0].completion_probability
-    )
+    assert risky.points[0].completion_probability < safe.points[0].completion_probability
 
 
 def test_reliable_circle_reaches_target_with_small_reserve() -> None:
     result = run_stress_test(circle(), scores([0.03] * 6))
     assert result.recommended_reserve_pct <= Decimal(5)
-    rec = next(
-        p for p in result.points if p.reserve_pct == result.recommended_reserve_pct
-    )
+    rec = next(p for p in result.points if p.reserve_pct == result.recommended_reserve_pct)
     assert rec.completion_probability >= TARGET_COMPLETION
 
 
@@ -109,9 +99,7 @@ def test_upfront_deposit_covers_a_missed_payment_from_cycle_one(
     monkeypatch.setattr(stress_test, "MISS_PER_P_LATE", 1.0)
     monkeypatch.setattr(stress_test, "DROPOUT_PER_P_LATE", 0.0)
     s = scores([1.0, 0.0, 0.0, 0.0, 0.0, 0.0])
-    result = run_stress_test(
-        circle(), s, reserve_pcts=[Decimal(2), Decimal(3)], n_sims=50
-    )
+    result = run_stress_test(circle(), s, reserve_pcts=[Decimal(2), Decimal(3)], n_sims=50)
     by_pct = {p.reserve_pct: p.completion_probability for p in result.points}
     # Pool = 6 members x pct% x $600 pot: 2% = $72 < $100 missed; 3% = $108 covers it.
     assert by_pct[Decimal(2)] == 0.0
@@ -121,9 +109,7 @@ def test_upfront_deposit_covers_a_missed_payment_from_cycle_one(
 def test_unreachable_target_recommends_best_option() -> None:
     result = persona_result()
     best = max(p.completion_probability for p in result.points)
-    rec = next(
-        p for p in result.points if p.reserve_pct == result.recommended_reserve_pct
-    )
+    rec = next(p for p in result.points if p.reserve_pct == result.recommended_reserve_pct)
     if best < TARGET_COMPLETION:
         assert rec.completion_probability == best
         assert rec.reserve_pct == min(
@@ -147,9 +133,7 @@ def test_invalid_inputs_are_rejected(
 
 # ---------- explanation ----------
 def _rec(result: StressTestResult) -> Any:
-    return next(
-        p for p in result.points if p.reserve_pct == result.recommended_reserve_pct
-    )
+    return next(p for p in result.points if p.reserve_pct == result.recommended_reserve_pct)
 
 
 def test_templates_state_exactly_the_engine_numbers() -> None:
@@ -162,10 +146,7 @@ def test_templates_state_exactly_the_engine_numbers() -> None:
         for locale in ("en", "ar-EG"):
             text = template_explanation(result, locale)
             assert f"{facts['base_pct']}%" in text
-            assert (
-                f"{facts['rec_pct']}%" in text
-                or facts["rec_reserve"] == facts["base_reserve"]
-            )
+            assert f"{facts['rec_pct']}%" in text or facts["rec_reserve"] == facts["base_reserve"]
             assert "E+" not in text
 
 
@@ -192,9 +173,7 @@ def test_explanation_states_the_dollar_deposit_per_member() -> None:
     result = run_stress_test(circle(), scores([0.03] * 6))
     deposit = stress_test.deposit_per_member(circle(), _rec(result).reserve_pct)
     assert deposit == Decimal("18.00")  # 3% of a 6 x $100 pot
-    assert "$18.00 deposit from each member" in template_explanation(
-        result, circle=circle()
-    )
+    assert "$18.00 deposit from each member" in template_explanation(result, circle=circle())
     assert "$" not in template_explanation(result)  # no circle -> no deposit sentence
 
 
@@ -210,9 +189,7 @@ class FakeLLM:
         self.text = text
         self.error = error
 
-    async def generate_json(
-        self, prompt: str, schema: dict[str, Any]
-    ) -> dict[str, Any]:
+    async def generate_json(self, prompt: str, schema: dict[str, Any]) -> dict[str, Any]:
         raise NotImplementedError
 
     async def generate_text(self, prompt: str) -> Any:
@@ -224,13 +201,8 @@ class FakeLLM:
 def test_llm_may_only_add_a_number_free_sentence() -> None:
     result = run_stress_test(circle(), scores([0.03] * 6))
     engine = template_explanation(result)
-    context = (
-        "A small shared cushion lets the circle pay on time even when someone slips."
-    )
-    assert (
-        asyncio.run(explain_stress_test(result, FakeLLM(context)))
-        == f"{engine} {context}"
-    )
+    context = "A small shared cushion lets the circle pay on time even when someone slips."
+    assert asyncio.run(explain_stress_test(result, FakeLLM(context))) == f"{engine} {context}"
 
     # Review finding 3: reshuffled engine digits used to pass the set-based check.
     misleading = "In 10 runs, 97% of circles paid every pot with a 0% reserve."
@@ -242,8 +214,7 @@ def test_llm_failure_and_no_llm_give_the_template() -> None:
     result = persona_result()
     expected = template_explanation(result, "ar-EG")
     assert (
-        asyncio.run(explain_stress_test(result, FakeLLM(error=RuntimeError()), "ar-EG"))
-        == expected
+        asyncio.run(explain_stress_test(result, FakeLLM(error=RuntimeError()), "ar-EG")) == expected
     )
     assert asyncio.run(explain_stress_test(result, locale="ar-EG")) == expected
 
@@ -255,15 +226,11 @@ def test_llm_sentence_may_not_contradict_the_recommendation() -> None:
         "Honestly this circle could skip the cushion entirely.",
         "A cushion is unnecessary for a group of friends like this.",
     ):
-        assert (
-            asyncio.run(explain_stress_test(result, FakeLLM(contradiction))) == engine
-        )
+        assert asyncio.run(explain_stress_test(result, FakeLLM(contradiction))) == engine
 
 
 # ---------- PayPal alignment: reserve -> billing plan setup_fee ----------
-PAYPAL_MONEY_VALUE = (
-    r"^((-?[0-9]+)|(-?([0-9]+)?[.][0-9]+))$"  # Subscriptions v1 Money.value
-)
+PAYPAL_MONEY_VALUE = r"^((-?[0-9]+)|(-?([0-9]+)?[.][0-9]+))$"  # Subscriptions v1 Money.value
 
 
 @pytest.mark.parametrize(
@@ -275,9 +242,7 @@ PAYPAL_MONEY_VALUE = (
         ("5000", 24, "10", "12000.00"),
     ],
 )
-def test_reserve_setup_fee_is_paypal_money(
-    amount: str, n: int, pct: str, value: str
-) -> None:
+def test_reserve_setup_fee_is_paypal_money(amount: str, n: int, pct: str, value: str) -> None:
     import re
 
     c = circle(n, amount)

@@ -17,7 +17,7 @@ wire and in Python.
 from __future__ import annotations
 
 from datetime import date, datetime
-from decimal import InvalidOperation, ROUND_HALF_UP, Decimal
+from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 from enum import StrEnum
 from typing import Annotated, Literal, NewType, get_args
 
@@ -284,7 +284,7 @@ class CircleSnapshot(StrictModel):
     cycle_unit: CycleUnit = CycleUnit.MONTH
     size_n: int = Field(ge=2, le=24)
     start_date: date
-    reserve_pct: Decimal = Field(default=Decimal("0.00"), ge=0, le=Decimal("0.20"))
+    reserve_pct: Decimal = Field(default=Decimal("0"), ge=0, le=Decimal("100"))
 
 
 class CircleSpec(StrictModel):
@@ -309,7 +309,7 @@ class CircleDetail(StrictModel):
     members: list[MemberSnapshot]
     cycles: list[CycleSnapshot]
     current_cycle_index: int = Field(ge=0, default=0)
-    reserve_pct: Decimal = Field(default=Decimal("0.00"), ge=0, le=Decimal("0.20"))
+    reserve_pct: Decimal = Field(default=Decimal("0"), ge=0, le=Decimal("100"))
 
 
 class AgentDecision(StrictModel):
@@ -470,7 +470,9 @@ class SwapProposal(StrictModel):
 
 
 class ReservePoint(StrictModel):
-    reserve_pct: Decimal
+    """One point of the sweep; reserve_pct is expressed in percent (3 = 3%)."""
+
+    reserve_pct: Decimal = Field(ge=0, le=100)
     completion_probability: float = Field(ge=0.0, le=1.0)
     expected_shortfall: Money
 
@@ -484,7 +486,7 @@ class StressTestResult(StrictModel):
     n_sims: int = Field(default=10_000, ge=1)
     seed: int = 42
     points: list[ReservePoint] = Field(min_length=1)
-    recommended_reserve_pct: Decimal = Field(ge=0, le=Decimal("0.20"))
+    recommended_reserve_pct: Decimal = Field(ge=0, le=Decimal("100"))
     explanation: str | None = None
 
 
@@ -568,11 +570,18 @@ class OrderApprovalRequest(StrictModel):
 
 class StressTestRequest(StrictModel):
     reserve_pcts: list[Decimal] = Field(
-        min_length=1, max_length=11,
-        default_factory=lambda: [Decimal(i) / Decimal(100) for i in range(0, 11)],
+        min_length=1,
+        max_length=11,
+        default_factory=lambda: [Decimal(i) for i in range(0, 11)],
     )
     n_sims: int = Field(default=10_000, ge=1, le=1_000_000)
     seed: int = 42
+
+    @model_validator(mode="after")
+    def _pcts_are_percent(self) -> StressTestRequest:
+        if any(not (0 <= p <= 100) for p in self.reserve_pcts):
+            raise ValueError("reserve_pcts are percentages between 0 and 100")
+        return self
 
 
 class CopilotQuestionRequest(StrictModel):

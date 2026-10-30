@@ -1,5 +1,4 @@
 import numpy as np
-
 from app.ml.synthetic import FEATURE_NAMES, generate_histories
 from app.schemas.contracts import ReliabilityFeatures
 
@@ -38,9 +37,7 @@ def test_features_match_contract_and_have_no_demographics() -> None:
 
 def test_rows_are_valid_reliability_features() -> None:
     ds = generate_histories(100)
-    int_fields = {
-        n for n, f in ReliabilityFeatures.model_fields.items() if f.annotation is int
-    }
+    int_fields = {n for n, f in ReliabilityFeatures.model_fields.items() if f.annotation is int}
     for row in ds.X[::17]:
         values = {
             n: int(v) if n in int_fields else float(v)

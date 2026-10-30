@@ -7,15 +7,15 @@ from decimal import Decimal
 from typing import Any
 
 import pytest
-from backend.app.leash.facts import (
+from app.leash.facts import (
     BaseFacts,
     ChaseInvoiceFacts,
     PayoutFacts,
     ReminderFacts,
     SwapFacts,
 )
-from backend.app.leash.templates import render_reason
-from backend.app.schemas.contracts import GuardAction, LeashDecision
+from app.leash.templates import render_reason
+from app.schemas.contracts import GuardAction, LeashDecision
 
 NOW = datetime(2026, 10, 28, 12, 0, tzinfo=UTC)
 ALLOW, ASK, DENY = LeashDecision.ALLOW, LeashDecision.ASK, LeashDecision.DENY

@@ -46,9 +46,7 @@ from app.schemas.contracts import (
 )
 
 MISS_PER_P_LATE = 0.15  # share of late payments that grace does not recover
-DROPOUT_PER_P_LATE = (
-    0.02  # average member: ~3.5% chance of dropping out per 6-cycle circle
-)
+DROPOUT_PER_P_LATE = 0.02  # average member: ~3.5% chance of dropping out per 6-cycle circle
 POST_PAYOUT_MULTIPLIER = 2.0
 TARGET_COMPLETION = 0.95
 DEFAULT_RESERVE_PCTS = tuple(Decimal(p) for p in range(11))  # 0% .. 10%
@@ -68,22 +66,14 @@ def _draw_events(
     """(dropped, missed) as bool[sims, cycles, members]; missed excludes dropped members."""
     n = len(p_late)
     p = np.asarray(p_late, dtype=np.float64)
-    received = (
-        np.arange(n)[None, :] < np.arange(n)[:, None]
-    )  # [cycle, member]: paid out earlier
-    dropout = (
-        DROPOUT_PER_P_LATE
-        * p[None, :]
-        * np.where(received, POST_PAYOUT_MULTIPLIER, 1.0)
-    )
+    received = np.arange(n)[None, :] < np.arange(n)[:, None]  # [cycle, member]: paid out earlier
+    dropout = DROPOUT_PER_P_LATE * p[None, :] * np.where(received, POST_PAYOUT_MULTIPLIER, 1.0)
     miss = np.broadcast_to(MISS_PER_P_LATE * p[None, :], (n, n))
     rng = np.random.default_rng(seed)
     dropped = np.logical_or.accumulate(
         rng.random((n_sims, n, n)) < np.clip(dropout, 0.0, 1.0), axis=1
     )
-    missed: NDArray[np.bool_] = (
-        rng.random((n_sims, n, n)) < np.clip(miss, 0.0, 1.0)
-    ) & ~dropped
+    missed: NDArray[np.bool_] = (rng.random((n_sims, n, n)) < np.clip(miss, 0.0, 1.0)) & ~dropped
     return dropped, missed
 
 
@@ -111,9 +101,7 @@ def run_stress_test(
     n = circle.size_n
     amount_cents = _cents(circle.contribution_amount)
     dropped, missed = _draw_events([s.p_late for s in scores], n_sims, seed)
-    shortfall = (dropped | missed).sum(
-        axis=2, dtype=np.int64
-    ) * amount_cents  # [sims, cycles]
+    shortfall = (dropped | missed).sum(axis=2, dtype=np.int64) * amount_cents  # [sims, cycles]
     # Last cycle's missers who are still in the circle catch up this cycle.
     repaid = np.zeros_like(shortfall)
     repaid[:, 1:] = (missed[:, :-1, :] & ~dropped[:, 1:, :]).sum(axis=2) * amount_cents
@@ -134,9 +122,7 @@ def run_stress_test(
             ReservePoint(
                 reserve_pct=pct,
                 completion_probability=completion,
-                expected_shortfall=mean_uncovered.quantize(
-                    CENT, rounding=ROUND_HALF_UP
-                ),
+                expected_shortfall=mean_uncovered.quantize(CENT, rounding=ROUND_HALF_UP),
             )
         )
 
@@ -184,9 +170,7 @@ def deposit_per_member(circle: CircleSnapshot, reserve_pct: Decimal) -> Decimal:
     return (pot * reserve_pct / 100).quantize(CENT, rounding=ROUND_HALF_UP)
 
 
-def reserve_setup_fee(
-    circle: CircleSnapshot, reserve_pct: Decimal
-) -> dict[str, str] | None:
+def reserve_setup_fee(circle: CircleSnapshot, reserve_pct: Decimal) -> dict[str, str] | None:
     """The reserve deposit as a PayPal Money object for a billing plan's setup_fee.
 
     PayPal collects `payment_preferences.setup_fee` once, as the initial payment

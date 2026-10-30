@@ -5,12 +5,12 @@ from collections.abc import Iterator
 from datetime import UTC, datetime
 
 import pytest
-from backend.app.api import leash as api
-from backend.app.api.leash import Actor, get_actor, get_db, register_leash_errors
-from backend.app.leash import LeashError, configure, decide, service
-from backend.app.leash.facts import BaseFacts, PayoutFacts
-from backend.app.leash.models import LeashDecisionRecord
-from backend.app.schemas.contracts import GuardAction, LeashErrorCode
+from app.api import leash as api
+from app.api.leash import Actor, get_actor, get_db, register_leash_errors
+from app.leash import LeashError, configure, decide, service
+from app.leash.facts import BaseFacts, PayoutFacts
+from app.leash.models import LeashDecisionRecord
+from app.schemas.contracts import GuardAction, LeashErrorCode
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session

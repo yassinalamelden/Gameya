@@ -74,9 +74,7 @@ def _load(path: Path = COEFFICIENTS_PATH) -> _Model:
     raw = json.loads(path.read_text(encoding="utf-8"))
     names = tuple(raw["feature_names"])
     if names != MODEL_FEATURES:
-        raise RuntimeError(
-            "coefficients.json does not match ReliabilityFeatures; retrain"
-        )
+        raise RuntimeError("coefficients.json does not match ReliabilityFeatures; retrain")
     return _Model(
         feature_names=names,
         means=tuple(raw["means"]),
@@ -140,9 +138,7 @@ def _clamp(f: ReliabilityFeatures) -> ReliabilityFeatures:
     return ReliabilityFeatures.model_validate(data)
 
 
-def score_reliability(
-    features: ReliabilityFeatures, member_id: MemberId
-) -> ReliabilityScore:
+def score_reliability(features: ReliabilityFeatures, member_id: MemberId) -> ReliabilityScore:
     """P(late next cycle) with the 3 features that moved it most.
 
     `contribution` is coef x standardised value on the logit scale:
@@ -154,9 +150,7 @@ def score_reliability(
     values["no_history"] = float(features.cycles_completed == 0)
     contributions = [
         (name, c * (float(values[name]) - mu) / s)
-        for name, mu, s, c in zip(
-            m.feature_names, m.means, m.scales, m.coefs, strict=True
-        )
+        for name, mu, s, c in zip(m.feature_names, m.means, m.scales, m.coefs, strict=True)
     ]
     logit = m.intercept + sum(v for _, v in contributions)
     if features.cycles_completed == 0:
@@ -171,9 +165,7 @@ def score_reliability(
         member_id=member_id,
         p_late=_sigmoid(logit),
         top_factors=[
-            ReliabilityFactor(
-                feature=name, contribution=round(v, 4), label=_label(name, features)
-            )
+            ReliabilityFactor(feature=name, contribution=round(v, 4), label=_label(name, features))
             for name, v in top
         ],
     )
@@ -186,7 +178,5 @@ def p_late_matrix(X: NDArray[np.float64]) -> NDArray[np.float64]:
     X = np.minimum(np.nan_to_num(X, nan=0.0), caps)
     z = (design_matrix(X) - np.asarray(m.means)) / np.asarray(m.scales)
     logit = m.intercept + z @ np.asarray(m.coefs)
-    out: NDArray[np.float64] = 0.5 * (
-        1.0 + np.tanh(0.5 * logit)
-    )  # overflow-safe sigmoid
+    out: NDArray[np.float64] = 0.5 * (1.0 + np.tanh(0.5 * logit))  # overflow-safe sigmoid
     return out

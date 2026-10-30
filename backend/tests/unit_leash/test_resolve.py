@@ -6,12 +6,12 @@ from datetime import UTC, datetime
 from typing import Any
 
 import pytest
-from backend.app.leash import service
-from backend.app.leash.facts import BaseFacts, ChaseInvoiceFacts, PayoutFacts
-from backend.app.leash.models import LeashDecisionRecord
-from backend.app.leash.policy import save_policy
-from backend.app.leash.service import LeashError, configure, decide, resolve
-from backend.app.schemas.contracts import (
+from app.leash import service
+from app.leash.facts import BaseFacts, ChaseInvoiceFacts, PayoutFacts
+from app.leash.models import LeashDecisionRecord
+from app.leash.policy import save_policy
+from app.leash.service import LeashError, configure, decide, resolve
+from app.schemas.contracts import (
     GuardAction,
     LeashDecision,
     LeashErrorCode,

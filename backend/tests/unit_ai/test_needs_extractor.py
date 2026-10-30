@@ -6,7 +6,6 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-
 from app.ai import needs_extractor
 from app.ai._llm_port import UNTRUSTED_TAG, wrap_untrusted
 from app.ai.needs_extractor import (
@@ -42,9 +41,7 @@ class FakeLLM:
         self.delay = delay
         self.prompts: list[str] = []
 
-    async def generate_json(
-        self, prompt: str, schema: dict[str, Any]
-    ) -> dict[str, Any]:
+    async def generate_json(self, prompt: str, schema: dict[str, Any]) -> dict[str, Any]:
         self.prompts.append(prompt)
         if self.delay:
             await asyncio.sleep(self.delay)
@@ -58,9 +55,7 @@ class FakeLLM:
 
 
 def _goldens(name: str) -> list[dict[str, Any]]:
-    data: list[dict[str, Any]] = json.loads(
-        (GOLDENS / name).read_text(encoding="utf-8")
-    )
+    data: list[dict[str, Any]] = json.loads((GOLDENS / name).read_text(encoding="utf-8"))
     return data
 
 
@@ -95,12 +90,8 @@ def test_may_as_a_verb_is_not_a_month() -> None:
 
 
 def test_month_before_circle_start_rolls_to_next_year() -> None:
-    assert extract_need_rules("wedding in October", CIRCLE).target_date == date(
-        2027, 10, 1
-    )
-    assert extract_need_rules("wedding in November", CIRCLE).target_date == date(
-        2026, 11, 1
-    )
+    assert extract_need_rules("wedding in October", CIRCLE).target_date == date(2027, 10, 1)
+    assert extract_need_rules("wedding in November", CIRCLE).target_date == date(2026, 11, 1)
 
 
 def test_egyptian_pounds_are_never_converted_to_dollars() -> None:
@@ -109,10 +100,7 @@ def test_egyptian_pounds_are_never_converted_to_dollars() -> None:
 
 
 def test_passport_is_travel_not_wedding() -> None:
-    assert (
-        extract_need_rules("محتاج اجدد جواز سفر", CIRCLE).category
-        is NeedCategory.TRAVEL
-    )
+    assert extract_need_rules("محتاج اجدد جواز سفر", CIRCLE).category is NeedCategory.TRAVEL
 
 
 def test_negated_urgency_is_not_urgent() -> None:
@@ -216,9 +204,7 @@ def test_llm_failure_falls_back_to_rules(llm: FakeLLM) -> None:
 def test_llm_timeout_falls_back_to_rules(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(needs_extractor, "LLM_TIMEOUT_S", 0.05)
     llm = FakeLLM({"category": "OTHER"}, delay=1.0)
-    result = asyncio.run(
-        extract_need_detailed("school fees in December", "en", CIRCLE, llm)
-    )
+    result = asyncio.run(extract_need_detailed("school fees in December", "en", CIRCLE, llm))
     assert result.source == "rules"
     assert "TimeoutError" in result.notes[0]
 

@@ -6,9 +6,6 @@ from decimal import Decimal
 from typing import Any
 
 import pytest
-from hypothesis import given, settings
-from hypothesis import strategies as st
-
 from app.ai.fair_order import (
     build_facts,
     explain_order_detailed,
@@ -30,6 +27,8 @@ from app.schemas.contracts import (
     SlotAssignment,
     SlotDate,
 )
+from hypothesis import given, settings
+from hypothesis import strategies as st
 
 CIRCLE = CircleSnapshot(
     circle_id="c1",
@@ -158,9 +157,7 @@ def test_proposal_with_unknown_member_is_rejected() -> None:
     _, members = _two_members()
     stray = OrderProposal(
         assignments=[
-            SlotAssignment(
-                member_id="ghost", slot_index=1, payout_date=date(2026, 11, 1), cost=0.0
-            )
+            SlotAssignment(member_id="ghost", slot_index=1, payout_date=date(2026, 11, 1), cost=0.0)
         ],
         seed=1,
     )
@@ -206,9 +203,7 @@ def test_real_urgency_still_counts() -> None:
 def test_a_year_elsewhere_in_the_text_does_not_move_the_date() -> None:
     need = extract_need_rules("wedding in March, been saving since 2024", CIRCLE)
     assert need.target_date == date(2027, 3, 1)
-    assert extract_need_rules("wedding on March 15, 2027", CIRCLE).target_date == date(
-        2027, 3, 15
-    )
+    assert extract_need_rules("wedding on March 15, 2027", CIRCLE).target_date == date(2027, 3, 15)
 
 
 def test_leap_day_rolls_to_the_next_leap_year() -> None:
@@ -223,9 +218,7 @@ def test_contract_rejects_bad_contribution_amounts_as_validation_errors(
     from pydantic import ValidationError
 
     with pytest.raises(ValidationError):
-        CircleSnapshot.model_validate(
-            {**CIRCLE.model_dump(), "contribution_amount": amount}
-        )
+        CircleSnapshot.model_validate({**CIRCLE.model_dump(), "contribution_amount": amount})
 
 
 # ---------- review round 3 (re-verification follow-ups) ----------
@@ -260,12 +253,8 @@ def test_sub_cent_contribution_is_rejected_before_rounding() -> None:
     from pydantic import ValidationError
 
     with pytest.raises(ValidationError):
-        CircleSnapshot.model_validate(
-            {**CIRCLE.model_dump(), "contribution_amount": "0.001"}
-        )
-    ok = CircleSnapshot.model_validate(
-        {**CIRCLE.model_dump(), "contribution_amount": "0.01"}
-    )
+        CircleSnapshot.model_validate({**CIRCLE.model_dump(), "contribution_amount": "0.001"})
+    ok = CircleSnapshot.model_validate({**CIRCLE.model_dump(), "contribution_amount": "0.01"})
     assert ok.contribution_amount == Decimal("0.01")
 
 

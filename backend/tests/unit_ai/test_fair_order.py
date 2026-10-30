@@ -6,9 +6,6 @@ from typing import Any
 
 import numpy as np
 import pytest
-from hypothesis import given, settings
-from hypothesis import strategies as st
-
 from app.ai.fair_order import (
     MemberFacts,
     build_facts,
@@ -32,6 +29,8 @@ from app.schemas.contracts import (
     NeedExtraction,
     SlotDate,
 )
+from hypothesis import given, settings
+from hypothesis import strategies as st
 
 CIRCLE = CircleSnapshot(
     circle_id="c1",
@@ -55,9 +54,7 @@ def monthly_slots(n: int, start: date = CIRCLE.start_date) -> list[SlotDate]:
     out = []
     for i in range(n):
         y, m = divmod(start.month - 1 + i, 12)
-        out.append(
-            SlotDate(slot_index=i + 1, payout_date=date(start.year + y, m + 1, 1))
-        )
+        out.append(SlotDate(slot_index=i + 1, payout_date=date(start.year + y, m + 1, 1)))
     return out
 
 
@@ -68,9 +65,7 @@ def profile(
     locale: Locale = "en",
 ) -> MemberProfile:
     return MemberProfile(
-        member=MemberSnapshot(
-            member_id=member_id, display_name=member_id.title(), locale=locale
-        ),
+        member=MemberSnapshot(member_id=member_id, display_name=member_id.title(), locale=locale),
         need=need,
         reliability_p_late=p_late,
     )
@@ -102,9 +97,7 @@ def personas() -> list[MemberProfile]:
     ]
 
 
-def total_cost(
-    members: list[MemberProfile], slots: list[SlotDate], order: list[int]
-) -> float:
+def total_cost(members: list[MemberProfile], slots: list[SlotDate], order: list[int]) -> float:
     """Cost of giving members[i] slots[order[i]] (slots sorted by date)."""
     n = len(slots)
     pos = [j / (n - 1) if n > 1 else 0.0 for j in range(n)]
@@ -158,20 +151,17 @@ def test_input_order_does_not_change_the_result() -> None:
 
 
 def test_seed_only_breaks_exact_ties() -> None:
-    twins = [
-        profile(f"m{i}") for i in range(4)
-    ]  # identical: every order costs the same
+    twins = [profile(f"m{i}") for i in range(4)]  # identical: every order costs the same
     orders = {
         tuple(
-            a.member_id
-            for a in propose_payout_order(twins, monthly_slots(4), seed=s).assignments
+            a.member_id for a in propose_payout_order(twins, monthly_slots(4), seed=s).assignments
         )
         for s in range(20)
     }
     assert len(orders) > 1
-    assert propose_payout_order(
+    assert propose_payout_order(twins, monthly_slots(4), seed=3) == propose_payout_order(
         twins, monthly_slots(4), seed=3
-    ) == propose_payout_order(twins, monthly_slots(4), seed=3)
+    )
 
 
 # ---------- cost behaviour ----------
@@ -254,9 +244,7 @@ def test_result_is_a_valid_optimal_permutation(specs: list[Any], seed: int) -> N
     assert sorted(a.member_id for a in proposal.assignments) == sorted(
         m.member.member_id for m in members
     )
-    assert sorted(a.slot_index for a in proposal.assignments) == [
-        s.slot_index for s in slots
-    ]
+    assert sorted(a.slot_index for a in proposal.assignments) == [s.slot_index for s in slots]
 
     chosen = {a.member_id: a.slot_index - 1 for a in proposal.assignments}
     best = total_cost(members, slots, [chosen[m.member.member_id] for m in members])
@@ -296,18 +284,14 @@ def test_published_cost_does_not_depend_on_reliability() -> None:
 # ---------- review finding 5: lexicographic tie-break and seed policy ----------
 def test_tie_break_never_beats_a_cheaper_assignment() -> None:
     # Near-tie case from the review: the old n**2 scaling picked a costlier order.
-    members = [
-        profile(f"m{i}", None, p)
-        for i, p in enumerate([0.10075, 0.1005, 0.10025, 0.10075])
-    ]
+    members = [profile(f"m{i}", None, p) for i, p in enumerate([0.10075, 0.1005, 0.10025, 0.10075])]
     slots = monthly_slots(4)
     scale = 1000
     for seed in range(0, 600, 7):
         proposal = propose_payout_order(members, slots, seed=seed)
         chosen = {a.member_id: a.slot_index - 1 for a in proposal.assignments}
         got = round(
-            scale
-            * total_cost(members, slots, [chosen[m.member.member_id] for m in members])
+            scale * total_cost(members, slots, [chosen[m.member.member_id] for m in members])
         )
         best = min(
             round(scale * total_cost(members, slots, list(perm)))
@@ -356,9 +340,7 @@ def test_templates_never_mention_reliability() -> None:
 
 
 def test_facts_carry_no_reliability_data() -> None:
-    assert not any(
-        "late" in name or "reliab" in name for name in MemberFacts.__dataclass_fields__
-    )
+    assert not any("late" in name or "reliab" in name for name in MemberFacts.__dataclass_fields__)
 
 
 @pytest.mark.parametrize(
@@ -468,9 +450,7 @@ def test_display_name_injection_cannot_reach_other_members() -> None:
 def test_llm_failure_gives_templates_and_interface_returns_all_members() -> None:
     members = personas()
     proposal = propose_payout_order(members, monthly_slots(6), seed=42)
-    result = asyncio.run(
-        explain_order_detailed(proposal, members, FakeLLM(error=RuntimeError()))
-    )
+    result = asyncio.run(explain_order_detailed(proposal, members, FakeLLM(error=RuntimeError())))
     assert set(result.sources.values()) == {"template"}
     texts = asyncio.run(explain_order(proposal, members))
     assert len(texts) == 6

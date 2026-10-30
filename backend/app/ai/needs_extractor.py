@@ -30,9 +30,7 @@ from app.schemas.contracts import CircleSnapshot, Locale, NeedCategory, NeedExtr
 PROMPT_PATH = Path(__file__).parent / "prompts" / "needs_extract.md"
 Flexibility = Literal["low", "medium", "high"]
 MAX_TEXT_CHARS = 1000  # member text beyond this is ignored by both paths
-MAX_NEED_AMOUNT = Decimal(
-    "1000000.00"
-)  # larger "needs" are noise; also fits NUMERIC(12,2)
+MAX_NEED_AMOUNT = Decimal("1000000.00")  # larger "needs" are noise; also fits NUMERIC(12,2)
 HORIZON_DAYS = 3 * 366  # a need date must fall within ~3 years of the circle start
 
 # ---------- normalisation ----------
@@ -126,9 +124,7 @@ _FIXED_DATE_CATEGORIES = frozenset(
 def _category(text: str) -> NeedCategory:
     text = text.replace("جواز سفر", "passport")  # Egyptian "passport", not "marriage"
     counts = {cat: len(p.findall(text)) for cat, p in _CATEGORY_PATTERNS.items()}
-    best = max(
-        _CATEGORY_PRIORITY, key=lambda c: (counts[c], -_CATEGORY_PRIORITY.index(c))
-    )
+    best = max(_CATEGORY_PRIORITY, key=lambda c: (counts[c], -_CATEGORY_PRIORITY.index(c)))
     return best if counts[best] else NeedCategory.OTHER
 
 
@@ -169,12 +165,8 @@ _MONTH_PATTERNS = [
 ]
 _DAY_AFTER = re.compile(r"^\s*(\d{1,2})(?:st|nd|rd|th)?(?!\d)")
 _DAY_BEFORE = re.compile(r"(?<!\d)(\d{1,2})(?:st|nd|rd|th)?\s*(?:of\s+)?$")
-_YEAR_AFTER = re.compile(
-    r"^\s*,?\s*(20[2-3]\d)(?!\d)"
-)  # "March 2027", "March 15, 2027"
-_NUMERIC_DATE = re.compile(
-    r"(?<!\d)(\d{1,2})/(\d{1,2})(?:/(\d{2}|\d{4}))?(?!\d)"
-)  # d/m(/y)
+_YEAR_AFTER = re.compile(r"^\s*,?\s*(20[2-3]\d)(?!\d)")  # "March 2027", "March 15, 2027"
+_NUMERIC_DATE = re.compile(r"(?<!\d)(\d{1,2})/(\d{1,2})(?:/(\d{2}|\d{4}))?(?!\d)")  # d/m(/y)
 _MONTH_NUMBER = re.compile(r"شهر\s*(\d{1,2})(?!\d)")  # Egyptian "شهر ٤" = April
 
 _NUMBER_WORDS = {
@@ -194,9 +186,7 @@ _RELATIVE: list[tuple[re.Pattern[str], int | None]] = [
 ]
 _SEASONS: list[tuple[re.Pattern[str], int]] = [
     (
-        re.compile(
-            r"back to school|new school year|دخول المدارس|بدايه (?:الدراسه|المدارس)"
-        ),
+        re.compile(r"back to school|new school year|دخول المدارس|بدايه (?:الدراسه|المدارس)"),
         9,
     ),
     (re.compile(r"(?<![a-z])summer|(?<!\w)(?:ال)?صيف(?!\w)"), 7),
@@ -235,8 +225,7 @@ def _month_hits(text: str) -> list[tuple[int, int, re.Match[str]]]:
     for month, pattern in _MONTH_PATTERNS:
         for hit in pattern.finditer(text):
             if hit[0] == "may" and not (
-                _MAY_CONTEXT.search(text[: hit.start()])
-                or _DAY_AFTER.match(text[hit.end() :])
+                _MAY_CONTEXT.search(text[: hit.start()]) or _DAY_AFTER.match(text[hit.end() :])
             ):
                 continue
             found.append((hit.start(), month, hit))
@@ -331,9 +320,7 @@ def within_horizon(target: date | None, start: date) -> bool:
     Past dates are rejected rather than kept: a past date looks maximally late
     to the optimiser and would let a member claim slot 1.
     """
-    return target is not None and start <= target <= start + timedelta(
-        days=HORIZON_DAYS
-    )
+    return target is not None and start <= target <= start + timedelta(days=HORIZON_DAYS)
 
 
 # ---------- urgency / flexibility ----------
@@ -359,8 +346,10 @@ _URGENT = _compile(
 )
 _FLEXIBLE = _compile(("flexible", "flexibility", "مرن", "مش فارقة"))
 _NOT_FLEXIBLE = re.compile(
-    r"(?<![a-z])inflexible|(?<![a-z])(?:not|isn't|isnt|is not|never)\s+(?:very\s+|really\s+)?flexible"
-    r"|(?<!\w)(?:مش|مو|ليس)\s+مرن"
+    r"(?<![a-z])inflexible|"
+    r"(?<![a-z])(?:not|isn't|isnt|is not|never)\s+(?:very\s+|really\s+)?flexible"
+    r"|(?<!\w)(?:مش|مو|ليس)\s"
+    r"+مرن"
 )
 _URGENCY_CUES = (
     "emergency", "urgent", "asap", "must", "have to", "immediately",
@@ -485,17 +474,11 @@ def _ground(
     if need.amount_needed is not None and need.amount_needed not in usd_amounts(
         normalise(raw_text[:MAX_TEXT_CHARS])
     ):
-        notes.append(
-            f"dropped amount {need.amount_needed}: not a dollar amount in the text"
-        )
+        notes.append(f"dropped amount {need.amount_needed}: not a dollar amount in the text")
         need = need.model_copy(update={"amount_needed": None})
 
-    if need.target_date is not None and not within_horizon(
-        need.target_date, circle.start_date
-    ):
-        notes.append(
-            f"dropped target_date {need.target_date}: outside the circle's horizon"
-        )
+    if need.target_date is not None and not within_horizon(need.target_date, circle.start_date):
+        notes.append(f"dropped target_date {need.target_date}: outside the circle's horizon")
         need = need.model_copy(update={"target_date": None})
     return need, notes
 
@@ -507,16 +490,12 @@ async def extract_need_detailed(
     if llm is not None:
         try:
             prompt = build_prompt(raw_text, locale, circle)
-            data = await asyncio.wait_for(
-                llm.generate_json(prompt, _LLM_SCHEMA), LLM_TIMEOUT_S
-            )
+            data = await asyncio.wait_for(llm.generate_json(prompt, _LLM_SCHEMA), LLM_TIMEOUT_S)
             need, notes = _ground(data, raw_text, circle)
             return ExtractionResult(need, "llm", llm.model_name, notes)
         except Exception as exc:  # noqa: BLE001 - any LLM failure falls back to the rules
             note = f"llm failed ({type(exc).__name__}); used rules"
-            return ExtractionResult(
-                extract_need_rules(raw_text, circle), "rules", None, [note]
-            )
+            return ExtractionResult(extract_need_rules(raw_text, circle), "rules", None, [note])
     return ExtractionResult(extract_need_rules(raw_text, circle), "rules")
 
 

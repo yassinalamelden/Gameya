@@ -1,7 +1,7 @@
 from datetime import UTC, datetime
 
 import pytest
-from backend.app.leash.models import LeashDecisionRecord, LeashPolicyRow
+from app.leash.models import LeashDecisionRecord, LeashPolicyRow
 from sqlalchemy import inspect, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session

@@ -2,8 +2,8 @@ from datetime import UTC, datetime
 from decimal import Decimal
 
 import pytest
-from backend.app.leash.facts import FACTS_MODEL, ChaseInvoiceFacts, PayoutFacts
-from backend.app.schemas.contracts import GuardAction
+from app.leash.facts import FACTS_MODEL, ChaseInvoiceFacts, PayoutFacts
+from app.schemas.contracts import GuardAction
 from pydantic import ValidationError
 
 

@@ -52,16 +52,10 @@ PRIVATE_TERMS = frozenset({"reliability"})  # optimised on, never published
 
 def months_between(start: date, end: date) -> float:
     """Signed months from `start` to `end` (day difference counted as /30)."""
-    return (
-        (end.year - start.year) * 12
-        + (end.month - start.month)
-        + (end.day - start.day) / 30
-    )
+    return (end.year - start.year) * 12 + (end.month - start.month) + (end.day - start.day) / 30
 
 
-def cost_terms(
-    profile: MemberProfile, payout: date, position: float
-) -> dict[str, float]:
+def cost_terms(profile: MemberProfile, payout: date, position: float) -> dict[str, float]:
     """Each named term of cost(member, slot). `position` is 0 for the first slot, 1 for the last."""
     terms = {"reliability": W_RELIABILITY * profile.reliability_p_late * (1 - position)}
     need = profile.need
@@ -120,10 +114,7 @@ def propose_payout_order(
     positions = _positions(n)
 
     terms = [
-        [
-            cost_terms(p, s.payout_date, pos)
-            for s, pos in zip(ordered_slots, positions, strict=True)
-        ]
+        [cost_terms(p, s.payout_date, pos) for s, pos in zip(ordered_slots, positions, strict=True)]
         for p in people
     ]
     cost = np.array([[sum(t.values()) for t in row] for row in terms])
@@ -242,9 +233,7 @@ class MemberFacts:
         return _PREFIX[self.locale].format(**self.render())
 
 
-def build_facts(
-    proposal: OrderProposal, members: list[MemberProfile]
-) -> list[MemberFacts]:
+def build_facts(proposal: OrderProposal, members: list[MemberProfile]) -> list[MemberFacts]:
     by_id = {m.member.member_id: m for m in members}
     if unknown := {a.member_id for a in proposal.assignments} - by_id.keys():
         raise ValueError(f"proposal has members with no profile: {sorted(unknown)}")
@@ -316,9 +305,7 @@ async def explain_order_detailed(
 ) -> ExplanationResult:
     facts = build_facts(proposal, members)
     texts = {f.member_id: template_explanation(f) for f in facts}
-    sources: dict[MemberId, Literal["llm", "template"]] = dict.fromkeys(
-        texts, "template"
-    )
+    sources: dict[MemberId, Literal["llm", "template"]] = dict.fromkeys(texts, "template")
     if llm is None:
         return ExplanationResult(texts, sources)
 
@@ -340,13 +327,9 @@ async def explain_order_detailed(
         prompt = _EXPLAIN_PROMPT + json.dumps(payload, ensure_ascii=False, indent=1)
         reply = await asyncio.wait_for(llm.generate_json(prompt, schema), LLM_TIMEOUT_S)
     except Exception as exc:  # noqa: BLE001 - any LLM failure falls back to templates
-        return ExplanationResult(
-            texts, sources, None, [f"llm failed ({type(exc).__name__})"]
-        )
+        return ExplanationResult(texts, sources, None, [f"llm failed ({type(exc).__name__})"])
     if not isinstance(reply, dict):
-        return ExplanationResult(
-            texts, sources, None, ["llm reply was not a JSON object"]
-        )
+        return ExplanationResult(texts, sources, None, ["llm reply was not a JSON object"])
 
     notes: list[str] = []
     all_names = [f.name for f in facts]

@@ -5,8 +5,8 @@ from decimal import Decimal
 from typing import Any
 
 import pytest
-from backend.app.leash.guard import evaluate_rules
-from backend.app.schemas.contracts import (
+from app.leash.guard import evaluate_rules
+from app.schemas.contracts import (
     GuardAction,
     LeashDecision,
     LeashPolicy,
