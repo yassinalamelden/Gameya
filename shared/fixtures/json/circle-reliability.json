@@ -1,0 +1,76 @@
+{
+  "circle_id": "circle-golden-01",
+  "rows": [
+    {
+      "member_id": "mem-sara",
+      "display_name": "Sara",
+      "score": {
+        "member_id": "mem-sara",
+        "p_late": 0.1,
+        "top_factors": [
+          { "key": "payments_on_time_ratio", "weight": 0.62, "description": "All 3 cycles paid before the due date" },
+          { "key": "member_history_length", "weight": 0.21, "description": "Three cycles of history confirm stability" }
+        ]
+      }
+    },
+    {
+      "member_id": "mem-omar",
+      "display_name": "Omar",
+      "score": {
+        "member_id": "mem-omar",
+        "p_late": 0.45,
+        "top_factors": [
+          { "key": "late_cycles_ratio", "weight": 0.4, "description": "Paid cycle 3 two days late after an invoice" },
+          { "key": "invoice_history", "weight": 0.28, "description": "One PayPal invoice issued during the last cycle" },
+          { "key": "recent_due_in_window", "weight": 0.19, "description": "Next due date is inside the 7-day risk window" }
+        ]
+      }
+    },
+    {
+      "member_id": "mem-youssef",
+      "display_name": "Youssef",
+      "score": {
+        "member_id": "mem-youssef",
+        "p_late": 0.15,
+        "top_factors": [
+          { "key": "payments_on_time_ratio", "weight": 0.4, "description": "Two cycles paid on time, one paid next day via pay-now" },
+          { "key": "order_pay_history", "weight": 0.22, "description": "Used an instant Order catch-up payment in December" }
+        ]
+      }
+    },
+    {
+      "member_id": "mem-lina",
+      "display_name": "Lina",
+      "score": {
+        "member_id": "mem-lina",
+        "p_late": 0.2,
+        "top_factors": [
+          { "key": "payments_on_time_ratio", "weight": 0.55, "description": "All 3 cycles paid on time" },
+          { "key": "expense_pressure", "weight": 0.24, "description": "Upcoming wedding cost may tighten January cash flow" }
+        ]
+      }
+    },
+    {
+      "member_id": "mem-karim",
+      "display_name": "Karim",
+      "score": {
+        "member_id": "mem-karim",
+        "p_late": 0.09,
+        "top_factors": [
+          { "key": "payments_on_time_ratio", "weight": 0.66, "description": "All 3 cycles paid before the due date" }
+        ]
+      }
+    },
+    {
+      "member_id": "mem-amina",
+      "display_name": "Amina",
+      "score": {
+        "member_id": "mem-amina",
+        "p_late": 0.05,
+        "top_factors": [
+          { "key": "payments_on_time_ratio", "weight": 0.7, "description": "Organiser with 3 on-time cycles" }
+        ]
+      }
+    }
+  ]
+}

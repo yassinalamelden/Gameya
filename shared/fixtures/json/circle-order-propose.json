@@ -1,0 +1,36 @@
+{
+  "circle_id": "circle-golden-01",
+  "deterministic_seed": 42,
+  "slots": [
+    {
+      "member_id": "mem-sara",
+      "slot_index": 0,
+      "explanation": "Sara receives the first pot (1 Nov 2026). Her rent is due exactly when the circle starts, and her need has the highest deadline urgency."
+    },
+    {
+      "member_id": "mem-omar",
+      "slot_index": 1,
+      "explanation": "Omar receives the pot on 1 Dec 2026, two weeks before his 15 Dec tuition deadline — the engine places payouts just ahead of hard deadlines."
+    },
+    {
+      "member_id": "mem-lina",
+      "slot_index": 2,
+      "explanation": "Lina receives the pot on 1 Jan 2027, giving her funds before the March wedding while deposit savings stay on schedule."
+    },
+    {
+      "member_id": "mem-youssef",
+      "slot_index": 3,
+      "explanation": "Youssef receives the pot on 1 Feb 2027. His need is flexible, so the optimiser balanced his slot against members with harder deadlines."
+    },
+    {
+      "member_id": "mem-karim",
+      "slot_index": 4,
+      "explanation": "Karim receives the pot on 1 Mar 2027. With no deadline needs, the deterministic seed 42 tie-break placed him after Youssef."
+    },
+    {
+      "member_id": "mem-amina",
+      "slot_index": 5,
+      "explanation": "Amina, the organiser, takes the last slot on 1 Apr 2027. She stated no urgency and deliberately yields earlier slots to members with pressing needs."
+    }
+  ]
+}

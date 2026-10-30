@@ -1,0 +1,14 @@
+{
+  "result": {
+    "circle_id": "circle-golden-01",
+    "n_sims": 10000,
+    "seed": 42,
+    "per_reserve": [
+      { "reserve_pct": "0.00", "completion_probability": 0.79, "expected_covered_cycles": 5.72 },
+      { "reserve_pct": "0.05", "completion_probability": 0.94, "expected_covered_cycles": 5.94 },
+      { "reserve_pct": "0.1", "completion_probability": 0.97, "expected_covered_cycles": 5.98 }
+    ],
+    "recommended_reserve_pct": "0.05"
+  },
+  "explanation": "Across 10,000 simulated circles with these members' reliability scores, a circle with no reserve completed all 6 cycles in 79% of runs. A 5% reserve (one $30 buffer per cycle from the group's own contributions) raises completion to 94%, nearly matching the 97% of a full 10% reserve while leaving more cash in members' pockets. The engine recommends 5%."
+}

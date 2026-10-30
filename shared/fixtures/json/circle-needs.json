@@ -1,0 +1,15 @@
+{
+  "member_id": "mem-omar",
+  "raw_text": "مصاريف مدرسة الأولاد في ديسمبر، لازم أكون دافيها قبل يوم ١٥",
+  "locale": "ar",
+  "needs": [
+    {
+      "kind": "deadline",
+      "description": "School tuition for the children, due before 15 December",
+      "target_date": "2026-12-15",
+      "urgency": 5,
+      "amount": null
+    }
+  ],
+  "confidence": 0.93
+}
