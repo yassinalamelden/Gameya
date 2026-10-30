@@ -1,41 +1,74 @@
-"""Canonical shared interface contracts for Gam'eya.
+"""Canonical cross-team contract types for Gam'eya (plan Section 7.4).
 
-Frozen per the engineering plan (Section 7.4). Owned by Person 5; any change
-requires a PR approved by Person 5 and every affected consumer.
+Owned by Person 5. Any change needs a PR approved by Person 5 plus every
+affected consumer lane, mirrored in frontend/src/types/contracts.ts.
 
-Interface 1 = typed Python models passed between the AI/ML packages and the
-backend. Interface 2 = REST request/response shapes served under /api/v1/*.
+Layout:
+  - shared primitives   (Money / PositiveMoney / ids)
+  - enums
+  - Interface 1         typed Python models passed into the AI/ML functions
+  - Interface 2         REST request/response models under /api/v1/*
+  - Interface 3         Leash payout-guard types (Person 2)
 
-Money is Decimal with 2 decimal places, ROUND_HALF_UP; float is banned on
-financial paths.
+Money is Decimal quantised to 0.01 ROUND_HALF_UP; floats are rejected on the
+wire and in Python.
 """
 
 from __future__ import annotations
 
-from datetime import date, datetime  # noqa: TC003
-from decimal import ROUND_HALF_UP, Decimal
+from datetime import date, datetime
+from decimal import InvalidOperation, ROUND_HALF_UP, Decimal
 from enum import StrEnum
-from typing import Annotated, Literal, NewType
+from typing import Annotated, Literal, NewType, get_args
 
-from pydantic import BaseModel, ConfigDict, Field, HttpUrl, model_validator
+from pydantic import (
+    AfterValidator,
+    BaseModel,
+    BeforeValidator,
+    ConfigDict,
+    Field,
+    HttpUrl,
+    model_validator,
+)
 
 MemberId = NewType("MemberId", str)
 CircleId = NewType("CircleId", str)
-CycleIndex = NewType("CycleIndex", int)
-
-
-class StrictModel(BaseModel):
-    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
 
 def quantize_amount(value: Decimal) -> Decimal:
     return value.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
 
-Money = Annotated[
-    Decimal,
-    Field(max_digits=12, decimal_places=2, ge=Decimal("0.00")),
-]
+CENT = Decimal("0.01")
+
+
+def _reject_float(v: object) -> object:
+    if isinstance(v, float):
+        raise ValueError("floats are not allowed for money; send a string or Decimal")  # noqa: TRY004
+    return v
+
+
+def _quantise(v: Decimal) -> Decimal:
+    if not v.is_finite():
+        raise ValueError("money must be a finite amount")
+    try:
+        return v.quantize(CENT, rounding=ROUND_HALF_UP)
+    except InvalidOperation:
+        raise ValueError("money amount is too large") from None
+
+
+def _positive(v: Decimal) -> Decimal:
+    if v <= 0:
+        raise ValueError("amount must be at least 0.01")
+    return v
+
+
+Money = Annotated[Decimal, BeforeValidator(_reject_float), AfterValidator(_quantise)]
+PositiveMoney = Annotated[Money, AfterValidator(_positive)]
+
+
+class StrictModel(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
 
 class Environment(StrEnum):
@@ -44,9 +77,9 @@ class Environment(StrEnum):
     PRODUCTION = "production"
 
 
-class Locale(StrEnum):
-    EN = "en"
-    AR = "ar"
+Locale = Literal["en", "ar-EG"]
+
+LOCALES: tuple[str, ...] = get_args(Locale)
 
 
 class Role(StrEnum):
@@ -54,10 +87,19 @@ class Role(StrEnum):
     MEMBER = "member"
 
 
-class BillingFrequency(StrEnum):
-    WEEKLY = "weekly"
-    BIWEEKLY = "biweekly"
-    MONTHLY = "monthly"
+class CycleUnit(StrEnum):
+    WEEK = "WEEK"
+    MONTH = "MONTH"
+
+
+class NeedCategory(StrEnum):
+    WEDDING = "WEDDING"
+    EDUCATION = "EDUCATION"
+    MEDICAL = "MEDICAL"
+    HOUSING = "HOUSING"
+    BUSINESS = "BUSINESS"
+    TRAVEL = "TRAVEL"
+    OTHER = "OTHER"
 
 
 class ContributionStatus(StrEnum):
@@ -115,6 +157,7 @@ class AgentName(StrEnum):
     NEEDS_EXTRACTOR = "needs_extractor"
     FAIR_ORDER = "fair_order"
     STRESS_TEST = "stress_test"
+    LEASH = "leash"
 
 
 class ToolName(StrEnum):
@@ -183,23 +226,38 @@ class RiskFactor(StrictModel):
     description: str = Field(max_length=200)
 
 
+class ReliabilityFactor(StrictModel):
+    feature: str
+    contribution: float
+    label: str
+
+
 class ReliabilityScore(StrictModel):
     """Explainable P(late next cycle). Never framed as a credit score."""
 
     member_id: MemberId
     p_late: float = Field(ge=0.0, le=1.0)
-    top_factors: list[RiskFactor] = Field(max_length=3, default_factory=list)
+    top_factors: list[ReliabilityFactor] = Field(max_length=3, default_factory=list)
 
 
 class ReliabilityFeatures(StrictModel):
-    member_id: MemberId
-    features: dict[str, float]
+    """The payment-history factor set the reliability model is trained on."""
+
+    on_time_ratio: float = Field(ge=0, le=1)
+    avg_days_late: float = Field(ge=0)
+    cycles_completed: int = Field(ge=0)
+    failed_payments: int = Field(ge=0)
+    invoices_needed: int = Field(ge=0)
+    circles_completed: int = Field(ge=0)
+    account_age_days: int = Field(ge=0)
 
 
 class MemberSnapshot(StrictModel):
     member_id: MemberId
     display_name: str
     role: Role = Role.MEMBER
+    locale: Locale = "en"
+    slot_index: int | None = None
     subscription_status: SubscriptionStatus = SubscriptionStatus.NONE
     contribution_status: ContributionStatus | None = None
     days_late: int = Field(default=0, ge=0)
@@ -216,21 +274,36 @@ class CycleSnapshot(StrictModel):
     unpaid_members: list[MemberSnapshot] = Field(default_factory=list)
 
 
+class CircleSnapshot(StrictModel):
+    """Read-only circle view built by Person 1 and consumed by the AI lanes."""
+
+    circle_id: CircleId
+    name: str
+    contribution_amount: PositiveMoney
+    currency: Literal["USD"] = "USD"
+    cycle_unit: CycleUnit = CycleUnit.MONTH
+    size_n: int = Field(ge=2, le=24)
+    start_date: date
+    reserve_pct: Decimal = Field(default=Decimal("0.00"), ge=0, le=Decimal("0.20"))
+
+
 class CircleSpec(StrictModel):
     """The typed result of the Circle Agent's slot-filling conversation."""
 
     name: str = Field(min_length=1, max_length=80)
     member_count: int = Field(ge=2, le=12)
-    contribution_amount: Money
+    contribution_amount: PositiveMoney
     currency: Literal["USD"] = "USD"
-    frequency: BillingFrequency = BillingFrequency.MONTHLY
+    cycle_unit: CycleUnit = CycleUnit.MONTH
     start_date: date
     organiser_id: MemberId | None = None
     purpose: str | None = Field(default=None, max_length=500)
     confirmed: bool = False
 
 
-class CircleSnapshot(StrictModel):
+class CircleDetail(StrictModel):
+    """REST shape for GET /circles/{id} and POST /circles (spec + members + cycles)."""
+
     circle_id: CircleId
     spec: CircleSpec
     members: list[MemberSnapshot]
@@ -261,27 +334,23 @@ class CircleAgentTurn(StrictModel):
     needs_confirmation: bool = False
 
 
-class NeedItem(StrictModel):
-    kind: Literal["deadline", "flexible"]
-    description: str = Field(max_length=300)
-    target_date: date | None = None
-    urgency: int = Field(ge=1, le=5)
-    amount: Money | None = None
-
-
 class NeedExtraction(StrictModel):
-    member_id: MemberId
-    raw_text: str = Field(max_length=1000)
-    locale: Locale
-    needs: list[NeedItem] = Field(min_length=1, max_length=5)
+    """Structured output of the needs extractor (REQ-AI-02, Person 3)."""
+
+    member_id: MemberId | None = None
+    category: NeedCategory
+    target_date: date | None = None
+    amount_needed: Money | None = None
+    urgency: int = Field(ge=1, le=5)
+    flexibility: Literal["low", "medium", "high"]
     confidence: float = Field(ge=0.0, le=1.0)
+    raw_month_hint: str | None = None
 
 
 class MemberProfile(StrictModel):
-    member_id: MemberId
-    display_name: str
-    needs: list[NeedExtraction] = Field(default_factory=list)
-    reliability: ReliabilityScore | None = None
+    member: MemberSnapshot
+    need: NeedExtraction | None = None
+    reliability_p_late: float = Field(ge=0, le=1)
 
 
 class SlotDate(StrictModel):
@@ -292,15 +361,26 @@ class SlotDate(StrictModel):
 class SlotAssignment(StrictModel):
     member_id: MemberId
     slot_index: int = Field(ge=0)
-    explanation: str = Field(max_length=500)
+    payout_date: date
+    cost: float
 
 
 class OrderProposal(StrictModel):
     """Deterministic Hungarian-optimiser output; the LLM never picks the order."""
 
-    circle_id: CircleId
-    deterministic_seed: int
-    slots: list[SlotAssignment] = Field(min_length=2)
+    assignments: list[SlotAssignment] = Field(min_length=1)
+    seed: int
+    explanations: dict[MemberId, str] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def _one_member_per_slot(self) -> OrderProposal:
+        slots = [a.slot_index for a in self.assignments]
+        if len(slots) != len(set(slots)):
+            raise ValueError("duplicate slot_index in OrderProposal")
+        members = [a.member_id for a in self.assignments]
+        if len(members) != len(set(members)):
+            raise ValueError("duplicate member_id in OrderProposal")
+        return self
 
 
 class Viewer(StrictModel):
@@ -334,7 +414,7 @@ class ChasePlan(StrictModel):
     cycle_index: int = Field(ge=0)
     action: ChaseAction
     nudge_text: str | None = Field(default=None, max_length=1000)
-    invoice_amount: Money | None = None
+    invoice_amount: PositiveMoney | None = None
     invoice_note: str | None = Field(default=None, max_length=1000)
     agent_decision: AgentDecision | None = None
 
@@ -363,7 +443,7 @@ class MediationOption(StrictModel):
     option_id: str
     kind: MediationKind
     description: str = Field(max_length=500)
-    amount: Money | None = None
+    amount: PositiveMoney | None = None
     requires_approval: bool = Field(default=True, frozen=True)
     agent_decision: AgentDecision | None = None
 
@@ -389,20 +469,23 @@ class SwapProposal(StrictModel):
     agent_decision: AgentDecision | None = None
 
 
-class ReserveOutcome(StrictModel):
+class ReservePoint(StrictModel):
     reserve_pct: Decimal
     completion_probability: float = Field(ge=0.0, le=1.0)
-    expected_covered_cycles: float = Field(ge=0.0)
+    expected_shortfall: Money
 
 
 class StressTestResult(StrictModel):
-    """Monte Carlo completion odds per reserve percentage; seeded, deterministic."""
+    """Monte Carlo completion odds per reserve percentage; seeded, deterministic.
 
-    circle_id: CircleId
+    reserve_pct is an upfront deposit collected before the first payout.
+    """
+
     n_sims: int = Field(default=10_000, ge=1)
     seed: int = 42
-    per_reserve: list[ReserveOutcome] = Field(min_length=1)
-    recommended_reserve_pct: Decimal
+    points: list[ReservePoint] = Field(min_length=1)
+    recommended_reserve_pct: Decimal = Field(ge=0, le=Decimal("0.20"))
+    explanation: str | None = None
 
 
 class AgentChatSession(StrictModel):
@@ -454,7 +537,7 @@ class PayPalReferences(StrictModel):
 
 
 class CircleCreateResponse(StrictModel):
-    circle: CircleSnapshot
+    circle: CircleDetail
     paypal: PayPalReferences
 
 
@@ -476,7 +559,7 @@ class NeedSubmissionRequest(StrictModel):
 
 
 class OrderProposeRequest(StrictModel):
-    deterministic_seed: int = 42
+    seed: int = 42
 
 
 class OrderApprovalRequest(StrictModel):
@@ -485,17 +568,11 @@ class OrderApprovalRequest(StrictModel):
 
 class StressTestRequest(StrictModel):
     reserve_pcts: list[Decimal] = Field(
-        min_length=1,
-        max_length=11,
-        default_factory=lambda: [Decimal(i) for i in range(0, 11)],
+        min_length=1, max_length=11,
+        default_factory=lambda: [Decimal(i) / Decimal(100) for i in range(0, 11)],
     )
     n_sims: int = Field(default=10_000, ge=1, le=1_000_000)
     seed: int = 42
-
-
-class StressTestResponse(StrictModel):
-    result: StressTestResult
-    explanation: str
 
 
 class CopilotQuestionRequest(StrictModel):
@@ -532,10 +609,20 @@ class LedgerRow(StrictModel):
     cycle_index: int = Field(ge=0)
     member_id: MemberId
     member_name: str
-    amount: Money
+    amount: PositiveMoney
     status: ContributionStatus
     source: ContributionSource
     paypal_reference: str | None = None
+    created_at: datetime | None = None
+
+
+class PayoutRow(StrictModel):
+    payout_id: str
+    cycle_index: int
+    recipient_id: MemberId
+    batch_id: str
+    amount: PositiveMoney
+    status: PayoutStatus
     created_at: datetime | None = None
 
 
@@ -545,16 +632,6 @@ class LedgerResponse(StrictModel):
     payouts: list[PayoutRow]
     contributions_total: Money
     paid_out_total: Money
-
-
-class PayoutRow(StrictModel):
-    payout_id: str
-    cycle_index: int
-    recipient_id: MemberId
-    batch_id: str
-    amount: Money
-    status: PayoutStatus
-    created_at: datetime | None = None
 
 
 class AuditResponse(StrictModel):
@@ -594,3 +671,116 @@ class HealthResponse(StrictModel):
     llm: SanityStatus
     database: SanityStatus
     version: str
+
+
+class GuardAction(StrEnum):
+    RELEASE_POT_PAYOUT = "RELEASE_POT_PAYOUT"
+    SEND_CHASE_INVOICE = "SEND_CHASE_INVOICE"
+    SEND_INVOICE_REMINDER = "SEND_INVOICE_REMINDER"
+    APPLY_SLOT_SWAP = "APPLY_SLOT_SWAP"
+
+
+class LeashDecision(StrEnum):
+    ALLOW = "ALLOW"
+    ASK = "ASK"
+    DENY = "DENY"
+
+
+LeashPreset = Literal["HANDS_OFF", "STANDARD", "STRICT"]
+
+
+class LeashThresholds(StrictModel):
+    email_change_window_days: int = Field(default=7, ge=1, le=30)
+    reminder_min_gap_hours: int = Field(default=48, ge=12, le=168)
+    max_reminders_per_cycle: int = Field(default=3, ge=1, le=10)
+    swap_cooldown_hours: int = Field(default=24, ge=0, le=168)
+    swap_near_payout_hours: int = Field(default=48, ge=0, le=168)
+    high_risk_p_late: Decimal = Field(default=Decimal("0.50"), ge=0, le=1)
+
+
+class LeashPolicy(StrictModel):
+    circle_id: CircleId
+    version: int
+    preset: LeashPreset = "STANDARD"
+    thresholds: LeashThresholds
+    no_auto_chase_member_ids: list[MemberId] = Field(default_factory=list)
+
+
+class GuardResult(StrictModel):
+    decision: LeashDecision
+    rule_ids: list[str] = Field(max_length=20)
+    reason: str = Field(max_length=200)
+    decision_id: str
+
+
+class LeashInboxRecipient(StrictModel):
+    member_id: MemberId
+    name: str
+    payout_email: str | None = None
+
+
+class LeashInboxItem(StrictModel):
+    decision_id: str
+    action: GuardAction
+    subject_type: Literal["payout", "chase_plan", "swap"]
+    subject_id: str
+    cycle_index: int | None = None
+    recipient: LeashInboxRecipient | None = None
+    amount: Money | None = None
+    rule_ids: list[str] = Field(max_length=20)
+    reason: str
+    created_at: datetime
+
+
+class LeashInbox(StrictModel):
+    items: list[LeashInboxItem]
+
+
+class LeashDecisionRow(StrictModel):
+    decision_id: str
+    circle_id: CircleId
+    policy_version: int
+    action: GuardAction
+    subject_type: Literal["payout", "chase_plan", "swap"]
+    subject_id: str
+    decision: LeashDecision
+    rule_ids: list[str] = Field(max_length=20)
+    amount: Money | None = None
+    reason: str
+    actor: Literal["leash", "organiser"]
+    status: Literal["FINAL", "OPEN", "APPROVED", "REJECTED"]
+    created_at: datetime
+    resolved_at: datetime | None = None
+
+
+class LeashResolveRequest(StrictModel):
+    note: str | None = Field(default=None, max_length=200)
+
+
+class LeashResolveResponse(StrictModel):
+    decision_id: str
+    approves: str
+    actor: Literal["organiser"]
+    result: dict[str, str] | None = None
+
+
+class LeashErrorCode(StrEnum):
+    ORGANISER_ONLY = "ORGANISER_ONLY"
+    LEASH_DECISION_NOT_FOUND = "LEASH_DECISION_NOT_FOUND"
+    LEASH_ALREADY_RESOLVED = "LEASH_ALREADY_RESOLVED"
+    LEASH_STALE_DECISION = "LEASH_STALE_DECISION"
+    LEASH_POLICY_INVALID = "LEASH_POLICY_INVALID"
+    LEASH_DISABLED = "LEASH_DISABLED"
+
+
+class LeashApiError(StrictModel):
+    """Envelope for every Leash HTTP error response."""
+
+    error: LeashErrorBody
+
+
+class LeashErrorBody(StrictModel):
+    code: LeashErrorCode
+    message: str
+    details: dict[str, str] | None = None
+    request_id: str | None = None
