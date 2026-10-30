@@ -8,8 +8,16 @@
         "member_id": "mem-sara",
         "p_late": 0.1,
         "top_factors": [
-          { "key": "payments_on_time_ratio", "weight": 0.62, "description": "All 3 cycles paid before the due date" },
-          { "key": "member_history_length", "weight": 0.21, "description": "Three cycles of history confirm stability" }
+          {
+            "feature": "on_time_ratio",
+            "contribution": 0.62,
+            "label": "All 3 cycles paid before the due date"
+          },
+          {
+            "feature": "circles_completed",
+            "contribution": 0.21,
+            "label": "Three cycles of history confirm stability"
+          }
         ]
       }
     },
@@ -20,9 +28,21 @@
         "member_id": "mem-omar",
         "p_late": 0.45,
         "top_factors": [
-          { "key": "late_cycles_ratio", "weight": 0.4, "description": "Paid cycle 3 two days late after an invoice" },
-          { "key": "invoice_history", "weight": 0.28, "description": "One PayPal invoice issued during the last cycle" },
-          { "key": "recent_due_in_window", "weight": 0.19, "description": "Next due date is inside the 7-day risk window" }
+          {
+            "feature": "failed_payments",
+            "contribution": 0.4,
+            "label": "Paid cycle 3 two days late after an invoice"
+          },
+          {
+            "feature": "invoices_needed",
+            "contribution": 0.28,
+            "label": "One PayPal invoice issued during the last cycle"
+          },
+          {
+            "feature": "avg_days_late",
+            "contribution": 0.19,
+            "label": "Next due date is inside the 7-day risk window"
+          }
         ]
       }
     },
@@ -33,8 +53,16 @@
         "member_id": "mem-youssef",
         "p_late": 0.15,
         "top_factors": [
-          { "key": "payments_on_time_ratio", "weight": 0.4, "description": "Two cycles paid on time, one paid next day via pay-now" },
-          { "key": "order_pay_history", "weight": 0.22, "description": "Used an instant Order catch-up payment in December" }
+          {
+            "feature": "on_time_ratio",
+            "contribution": 0.4,
+            "label": "Two cycles paid on time, one via instant pay-now"
+          },
+          {
+            "feature": "invoices_needed",
+            "contribution": 0.22,
+            "label": "Caught up a missed cycle with Orders v2"
+          }
         ]
       }
     },
@@ -45,8 +73,16 @@
         "member_id": "mem-lina",
         "p_late": 0.2,
         "top_factors": [
-          { "key": "payments_on_time_ratio", "weight": 0.55, "description": "All 3 cycles paid on time" },
-          { "key": "expense_pressure", "weight": 0.24, "description": "Upcoming wedding cost may tighten January cash flow" }
+          {
+            "feature": "on_time_ratio",
+            "contribution": 0.55,
+            "label": "All 3 cycles paid on time"
+          },
+          {
+            "feature": "account_age_days",
+            "contribution": 0.24,
+            "label": "Short member history flag"
+          }
         ]
       }
     },
@@ -57,7 +93,11 @@
         "member_id": "mem-karim",
         "p_late": 0.09,
         "top_factors": [
-          { "key": "payments_on_time_ratio", "weight": 0.66, "description": "All 3 cycles paid before the due date" }
+          {
+            "feature": "on_time_ratio",
+            "contribution": 0.66,
+            "label": "All 3 cycles paid before the due date"
+          }
         ]
       }
     },
@@ -68,7 +108,11 @@
         "member_id": "mem-amina",
         "p_late": 0.05,
         "top_factors": [
-          { "key": "payments_on_time_ratio", "weight": 0.7, "description": "Organiser with 3 on-time cycles" }
+          {
+            "feature": "on_time_ratio",
+            "contribution": 0.7,
+            "label": "Organiser with 3 on-time cycles"
+          }
         ]
       }
     }

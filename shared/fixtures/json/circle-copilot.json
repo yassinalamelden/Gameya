@@ -1,12 +1,16 @@
 {
-  "answer": "دورك يوم ١ فبراير ٢٠٢٧ — أنت صاحب الدورة الرابعة. كل أعضاء الدورة الثالثة دفعوا، وسحب دورتك مؤكد بإذن الله.",
+  "answer": "دورك يوم ١ مارس ٢٠٢٧ — أنت صاحب الدورة الخامسة. كل أعضاء الدورة الرابعة دفعوا، وسحب دورتك مؤكد بإذن الله.",
   "engine_facts_only": true,
-  "support_rows": ["cycle_index:3", "recipient_id:mem-youssef", "due_date:2027-02-01"],
+  "support_rows": [
+    "cycle_index:4",
+    "recipient_id:mem-youssef",
+    "due_date:2027-03-01"
+  ],
   "agent_decision": {
     "decision_id": "dec-copilot-011",
     "agent": "copilot",
     "circle_id": "circle-golden-01",
-    "cycle_index": 3,
+    "cycle_index": 4,
     "model": "gemini-3.5-flash",
     "tool_calls": [],
     "rationale": "Answered from SELECT-only ledger reads scoped to circle-golden-01; viewer requested own payout date",

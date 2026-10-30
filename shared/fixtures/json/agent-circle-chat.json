@@ -7,11 +7,11 @@
       "member_count": 6,
       "contribution_amount": "100.00",
       "currency": "USD",
-      "frequency": "monthly",
       "start_date": "2026-11-01",
       "organiser_id": "mem-amina",
       "purpose": "Group savings among friends",
-      "confirmed": false
+      "confirmed": false,
+      "cycle_unit": "MONTH"
     },
     "tool_calls": [],
     "agent_decision": {

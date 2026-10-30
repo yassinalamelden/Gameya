@@ -18,7 +18,7 @@
   {
     "option_id": "opt-omar-reserve",
     "kind": "reserve_cover",
-    "description": "The 5% reserve covers the missing $50 this cycle; the reserve is topped up across the next two cycles.",
+    "description": "The 3% upfront reserve deposit covers the missing $50 this cycle; the deposit is topped up before the next payout.",
     "amount": "50.00",
     "requires_approval": true,
     "agent_decision": null

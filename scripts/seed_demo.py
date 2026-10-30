@@ -81,7 +81,7 @@ def check_fixtures() -> list[str]:
     return [
         f"circle:       {circle['circle_id']} ({spec['name']})",
         f"members:      {len(members)} x {spec['contribution_amount']} USD / {spec['frequency']}",
-        f"starts:       {spec['start_date']}, reserve {float(circle['reserve_pct']) * 100:.0f}%",
+        f"starts:       {spec['start_date']}, reserve {float(circle['reserve_pct']):.0f}%",
         f"closed cycles:{len(closed):3} (recipients: "
         + ", ".join(str(c['recipient_id']) for c in closed)
         + ")",
